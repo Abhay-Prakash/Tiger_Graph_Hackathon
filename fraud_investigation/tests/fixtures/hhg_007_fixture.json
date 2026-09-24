@@ -1,0 +1,27 @@
+{
+  "case_id": "HHG-007",
+  "customer_id": "C09933",
+  "card_id": "C09933-K2",
+  "flagged_txn_id": "3514948",
+  "trigger_type": "risk_score",
+  "trigger_text": "High risk transaction flagged by automated scoring model",
+  "initial_risk_score": 0.87,
+  "flagged_txn_details": {
+    "amount": 111.92,
+    "channel": "in_person",
+    "addr1": 264.0,
+    "ts": "2016-12-04 19:55:28"
+  },
+  "customer_prior_history": {
+    "total_closed_cases": 19,
+    "confirmed_fraud_cases": 17,
+    "primary_home_region": 264.0
+  },
+  "expected_outcome": "confirmed_fraud",
+  "expected_pattern": "out_of_region_use",
+  "expected_policy_decision": {
+    "required_actions": ["CREATE_CASE", "BLOCK_CARD"],
+    "sar_required": false,
+    "approval_route": "auto"
+  }
+}

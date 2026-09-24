@@ -1,0 +1,8 @@
+langgraph
+langchain-core
+google-genai
+pydantic
+pytest
+httpx
+mcp
+pyTigerGraph

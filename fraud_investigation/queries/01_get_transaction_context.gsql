@@ -1,0 +1,90 @@
+// ============================================================
+// Query 01: get_transaction_context
+// ============================================================
+// Purpose:  Retrieve the flagged transaction, its owning customer,
+//           the customer's recent transaction history, and the
+//           device profile for the flagged transaction (if available).
+//
+// Inputs:
+//   flagged_txn_id : TransactionID of the flagged transaction (STRING)
+//   lookback_days  : How many days of customer history to retrieve (INT)
+//
+// Outputs (printed as JSON):
+//   FlaggedTxn         — flagged transaction vertex attributes
+//   TxnOwner           — customer vertex attributes
+//   @@recent_txns      — list of recent transactions (last lookback_days)
+//   DeviceSet          — device profile vertex (empty if not available)
+//
+// Bounded result: recent_txns limited to LIMIT 100.
+// Evidence provenance: "transactions.csv" + "identity.csv"
+// ============================================================
+
+CREATE OR REPLACE QUERY get_transaction_context(
+  STRING flagged_txn_id,
+  INT    lookback_days
+)
+FOR GRAPH FraudInvestigation
+SYNTAX V2 {
+
+  TYPEDEF TUPLE<
+    STRING   txn_id,
+    FLOAT    amount,
+    DATETIME txn_timestamp,
+    STRING   channel,
+    STRING   product_cd,
+    FLOAT    addr1,
+    FLOAT    risk_score,
+    STRING   p_email_domain,
+    STRING   r_email_domain,
+    FLOAT    d1,
+    FLOAT    c1,
+    FLOAT    c2,
+    STRING   card_network,
+    STRING   card_type
+  > TxnRecord;
+
+  ListAccum<TxnRecord> @@recent_txns;
+  MinAccum<DATETIME>   @@flagged_ts;  // used for cutoff calculation
+
+  // ---- Step 1: Locate the flagged transaction by primary key ----
+  // to_vertex() is O(1) primary-key lookup — does not scan all transactions.
+  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+
+  // Capture timestamp for window calculation
+  FlaggedTxn = SELECT t FROM FlaggedTxn:t
+    ACCUM @@flagged_ts += t.txn_timestamp;
+
+  // ---- Step 2: Find the customer who made this transaction ----
+  // Traverse reverse HAS_TRANSACTION edge: Transaction ← Customer
+  TxnOwner = SELECT c FROM FlaggedTxn:t -(<HAS_TRANSACTION)- Customer:c;
+
+  // ---- Step 3: Retrieve recent customer transactions ----
+  // Window: [flagged_ts - lookback_days, now]
+  INT flagged_epoch  = datetime_to_epoch(@@flagged_ts);
+  INT cutoff_epoch   = flagged_epoch - (lookback_days * 86400);
+
+  RecentTxns = SELECT t FROM TxnOwner:c -(HAS_TRANSACTION>)- Transaction:t
+    WHERE datetime_to_epoch(t.txn_timestamp) >= cutoff_epoch
+      AND t.txn_id != flagged_txn_id
+    ACCUM @@recent_txns += TxnRecord(
+      t.txn_id,        t.amount,      t.txn_timestamp,
+      t.channel,       t.product_cd,  t.addr1,
+      t.risk_score,    t.p_email_domain, t.r_email_domain,
+      t.d1,            t.c1,          t.c2,
+      t.card_network,  t.card_type
+    )
+    ORDER BY t.txn_timestamp DESC
+    LIMIT 100;
+
+  // ---- Step 4: Get device profile (if available) ----
+  // 24.4% of transactions have identity records — handle the empty case gracefully.
+  DeviceSet = SELECT d FROM FlaggedTxn:t -(HAS_IDENTITY>)- DeviceProfile:d;
+
+  // ---- Output ----
+  PRINT FlaggedTxn;
+  PRINT TxnOwner;
+  PRINT @@recent_txns AS recent_transactions;
+  PRINT DeviceSet     AS device_profile;
+}
+
+INSTALL QUERY get_transaction_context

@@ -1,0 +1,76 @@
+// ============================================================
+// Query 04: detect_shared_device
+// ============================================================
+// Purpose:  2-hop traversal (Transaction → DeviceProfile ← Transaction)
+//           to find other transactions/customers sharing the same specific device profile.
+//
+// Inputs:
+//   flagged_txn_id : Flagged transaction ID (STRING)
+//
+// Outputs:
+//   has_device              — TRUE if device identity exists for flagged transaction
+//   device_info             — DeviceInfo raw string
+//   shared_transaction_count— Number of other transactions sharing this device
+//   shared_customer_count   — Number of other distinct customers sharing this device
+//   shared_customers        — List of customer IDs sharing the device
+// ============================================================
+
+CREATE OR REPLACE QUERY detect_shared_device(
+  STRING flagged_txn_id
+)
+FOR GRAPH FraudInvestigation
+SYNTAX V2 {
+
+  TYPEDEF TUPLE<
+    STRING txn_id,
+    STRING customer_id,
+    FLOAT amount,
+    DATETIME txn_timestamp,
+    FLOAT risk_score
+  > SharedTxnRecord;
+
+  ListAccum<SharedTxnRecord> @@shared_txns;
+  SetAccum<STRING>           @@shared_customers;
+  MaxAccum<STRING>           @@device_id;
+  MaxAccum<STRING>           @@device_info;
+  MaxAccum<STRING>           @@device_type;
+  SumAccum<INT>              @@shared_txn_count;
+
+  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+
+  // 1-hop to DeviceProfile
+  DevProfile = SELECT d FROM FlaggedTxn:t -(HAS_IDENTITY>)- DeviceProfile:d
+    ACCUM
+      @@device_id   += d.device_id,
+      @@device_info += d.device_info,
+      @@device_type += d.device_type;
+
+  // 2-hop to other Transactions with same device
+  SharedTxns = SELECT t2 FROM DevProfile:d -(<HAS_IDENTITY)- Transaction:t2
+    WHERE t2.txn_id != flagged_txn_id;
+
+  // 3-hop to Customers of shared transactions
+  SharedCusts = SELECT c FROM SharedTxns:t2 -(<HAS_TRANSACTION)- Customer:c
+    ACCUM
+      @@shared_customers += c.customer_id,
+      @@shared_txns += SharedTxnRecord(
+        t2.txn_id, c.customer_id, t2.amount, t2.txn_timestamp, t2.risk_score
+      ),
+      @@shared_txn_count += 1;
+
+  BOOL has_device = FALSE;
+  IF @@device_id != "" THEN
+    has_device = TRUE;
+  END;
+
+  PRINT flagged_txn_id        AS flagged_txn_id;
+  PRINT has_device            AS has_device;
+  PRINT @@device_id           AS device_id;
+  PRINT @@device_info         AS device_info;
+  PRINT @@device_type         AS device_type;
+  PRINT @@shared_txn_count    AS shared_transaction_count;
+  PRINT @@shared_customers    AS shared_customers;
+  PRINT @@shared_txns         AS shared_transactions;
+}
+
+INSTALL QUERY detect_shared_device

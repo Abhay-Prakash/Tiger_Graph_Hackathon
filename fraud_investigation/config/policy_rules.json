@@ -1,0 +1,194 @@
+{
+  "_meta": {
+    "version": "hackathon-inferred-v1",
+    "description": "Fraud investigation policy rules for HHGOA hackathon.",
+    "source": "Derived entirely from statistical analysis of closed_cases_history.csv (5,565 closed cases). No explicit policy document was found in the repository. Each rule documents its evidence base.",
+    "warning": "These rules are INFERRED from data patterns, not from a published policy document. They should be treated as working hypotheses. Rule derivation methodology is documented in docs/POLICY_MODEL.md.",
+    "generated": "2026-09-23",
+    "deterministic": true,
+    "llm_override_permitted": false
+  },
+
+  "trigger_thresholds": {
+    "risk_score_trigger": {
+      "value": 0.50,
+      "description": "Minimum risk_score to trigger a case review.",
+      "source": "case_pack.csv — lowest risk_score in benchmark set is 0.52 (HHG-020). Customer reports have no score threshold.",
+      "type": "inferred"
+    }
+  },
+
+  "fraud_patterns": {
+    "card_not_present_fraud": {
+      "description": "Online purchases inconsistent with cardholder's usual merchants and amounts.",
+      "typical_channel": "online",
+      "avg_exposure_usd": 162.63,
+      "max_observed_exposure_usd": 2499.98,
+      "sar_rate": 0.010,
+      "case_count": 1404
+    },
+    "account_takeover": {
+      "description": "Card account accessed or controlled by an unauthorized party.",
+      "typical_channel": "online",
+      "avg_exposure_usd": 752.65,
+      "max_observed_exposure_usd": 35031.56,
+      "sar_rate": 0.155,
+      "case_count": 1205
+    },
+    "card_not_present_new_device": {
+      "description": "Card-not-present fraud originating from a new or unknown device.",
+      "typical_channel": "online",
+      "avg_exposure_usd": 324.79,
+      "max_observed_exposure_usd": 18477.45,
+      "sar_rate": 0.052,
+      "case_count": 1076
+    },
+    "out_of_region_use": {
+      "description": "Card-present use in a billing region the cardholder has no transaction history in, while cardholder retained the card.",
+      "typical_channel": "in_person",
+      "avg_exposure_usd": 582.96,
+      "max_observed_exposure_usd": 19692.61,
+      "sar_rate": 0.130,
+      "case_count": 955
+    },
+    "card_testing": {
+      "description": "Multiple small transactions in a short window, typically before larger fraud attempt.",
+      "typical_channel": "online",
+      "avg_exposure_usd": 1273.16,
+      "max_observed_exposure_usd": 4886.18,
+      "sar_rate": 0.438,
+      "case_count": 16
+    },
+    "undocumented": {
+      "description": "Complex scheme with connected cards forming a ring. Always requires SAR filing.",
+      "typical_channel": "mixed",
+      "avg_exposure_usd": 1171.27,
+      "max_observed_exposure_usd": 1922.65,
+      "sar_rate": 1.000,
+      "case_count": 9
+    },
+    "none": {
+      "description": "No fraud found — case cleared after investigation.",
+      "sar_rate": 0.000,
+      "case_count": 900
+    }
+  },
+
+  "rules": [
+    {
+      "rule_id": "POL-001",
+      "name": "mandatory_case_creation",
+      "description": "Any qualifying trigger must result in a case record.",
+      "condition": {
+        "trigger_type_in": ["risk_score", "customer_report", "analyst_request"]
+      },
+      "required_action": "CREATE_CASE",
+      "deterministic": true,
+      "overridable": false,
+      "source": "All 5,565 closed cases have a case_id — no trigger goes uninvestigated.",
+      "type": "inferred"
+    },
+    {
+      "rule_id": "POL-002",
+      "name": "mandatory_block_on_confirmed_fraud",
+      "description": "Every confirmed fraud case must block the card.",
+      "condition": {
+        "outcome": "confirmed_fraud"
+      },
+      "required_action": "BLOCK_CARD",
+      "deterministic": true,
+      "overridable": false,
+      "source": "4,665 of 4,665 confirmed_fraud cases include BLOCK_CARD. Zero exceptions.",
+      "type": "inferred"
+    },
+    {
+      "rule_id": "POL-003",
+      "name": "sar_filing_threshold",
+      "description": "File a Suspicious Activity Report when confirmed fraud exposure reaches the threshold, or for undocumented pattern regardless of amount.",
+      "condition": {
+        "outcome": "confirmed_fraud",
+        "any_of": [
+          {"exposure_usd_gte": 1000.0},
+          {"pattern": "undocumented"}
+        ]
+      },
+      "required_action": "FILE_REPORT",
+      "deterministic": true,
+      "overridable": false,
+      "source": "Statistical analysis: max unfiled confirmed_fraud exposure = USD 999.95. All 9 undocumented pattern cases filed SAR regardless of amount. Threshold inferred as USD 1,000.",
+      "type": "inferred",
+      "confidence": "high",
+      "caveat": "No official policy document confirms USD 1,000 threshold. May differ from FinCEN standard USD 5,000."
+    },
+    {
+      "rule_id": "POL-004",
+      "name": "cleared_case_protocol",
+      "description": "When investigation finds no fraud evidence, verify with customer then close.",
+      "condition": {
+        "outcome": "cleared"
+      },
+      "required_actions_in_order": ["VERIFY_WITH_CUSTOMER", "CLOSE_NO_FRAUD"],
+      "forbidden_actions": ["BLOCK_CARD", "FILE_REPORT"],
+      "deterministic": true,
+      "overridable": false,
+      "source": "900 of 900 cleared cases follow exactly VERIFY_WITH_CUSTOMER | CLOSE_NO_FRAUD. Zero cases with BLOCK_CARD or FILE_REPORT among cleared.",
+      "type": "inferred"
+    },
+    {
+      "rule_id": "POL-005",
+      "name": "customer_report_high_prior_probability",
+      "description": "Customer explicitly disputing a transaction has high prior fraud probability even if model risk score is low.",
+      "condition": {
+        "trigger_type": "customer_report"
+      },
+      "effect": "Treat initial evidence sufficiency threshold as lower; customer_report provides strong evidence requiring investigation even below risk score threshold.",
+      "deterministic": false,
+      "source": "6 of 20 benchmark cases are customer_report with no risk_score. Historical cleared cases (16.2%) show some are false positives, requiring VERIFY_WITH_CUSTOMER.",
+      "type": "inferred"
+    }
+  ],
+
+  "permitted_actions": [
+    {
+      "action": "CREATE_CASE",
+      "description": "Open a new investigation case record.",
+      "approval_required": false
+    },
+    {
+      "action": "BLOCK_CARD",
+      "description": "Block the flagged card from further transactions.",
+      "approval_required": false,
+      "prerequisite": "outcome == confirmed_fraud"
+    },
+    {
+      "action": "VERIFY_WITH_CUSTOMER",
+      "description": "Contact the cardholder to confirm whether the transaction was authorized.",
+      "approval_required": false
+    },
+    {
+      "action": "CLOSE_NO_FRAUD",
+      "description": "Close case with no fraud finding.",
+      "approval_required": false,
+      "prerequisite": "outcome == cleared"
+    },
+    {
+      "action": "FILE_REPORT",
+      "description": "File a Suspicious Activity Report (SAR).",
+      "approval_required": false,
+      "prerequisite": "outcome == confirmed_fraud AND (exposure_usd >= 1000 OR pattern == undocumented)"
+    }
+  ],
+
+  "forbidden_actions": [
+    {
+      "action": "BLOCK_CARD",
+      "when": "outcome == cleared",
+      "reason": "Never observed in historical data for cleared cases."
+    },
+    {
+      "action": "FILE_REPORT",
+      "when": "outcome == cleared",
+      "reason": "Never observed in historical data for cleared cases."
+    }
+  ]
+}

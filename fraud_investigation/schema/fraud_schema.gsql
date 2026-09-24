@@ -1,0 +1,208 @@
+-- =============================================================================
+-- TigerGraph Schema: FraudInvestigation
+-- Source of truth: docs/DATASET_ARCHAEOLOGY.md
+-- All vertex types and attributes are justified by observed data only.
+-- Fields omitted: V1-V339 (opaque IEEE features), C3-C14, D2-D15, M1-M3, M7-M9
+-- =============================================================================
+
+-- Run this file via Python loader:
+--   conn.gsql(open("schema/fraud_schema.gsql").read())
+-- or directly in GSQL shell.
+--
+-- Idempotency note: The Python loader checks graph existence before applying.
+-- Use --reset flag in load_data.py to DROP GRAPH and reapply cleanly.
+
+
+-- ============================================================
+-- VERTEX TYPES (global schema level)
+-- ============================================================
+
+-- Customer: identified by customer_id (format C#####)
+-- Source: transactions.csv:customer_id
+CREATE VERTEX Customer (
+  PRIMARY_ID customer_id STRING
+) WITH primary_id_as_attribute="TRUE"
+
+-- Card: identified by {customer_id}-K{n} (format C#####-K#)
+-- Source: closed_cases_history.csv:card_id, case_pack.csv:card_id
+-- card_token = transactions.csv:card1 value (numeric, opaque token — NOT a real PAN)
+CREATE VERTEX Card (
+  PRIMARY_ID card_id  STRING,
+  customer_id         STRING,   -- owning customer
+  card_network        STRING,   -- transactions.csv:card4 (visa/mastercard/amex/discover)
+  card_type           STRING,   -- transactions.csv:card6 (credit/debit)
+  card_token          STRING    -- transactions.csv:card1 (numeric, stored as string)
+) WITH primary_id_as_attribute="TRUE"
+
+-- Transaction: only investigation-relevant columns.
+-- Source: transactions.csv
+-- Omitted by design:
+--   V1-V339  — opaque IEEE competition features, not interpretable individually
+--   C3-C14   — count features with undocumented semantics
+--   D2-D15   — time-delta features, very sparse, semantics undocumented
+--   M1-M3    — match flags, sparsely populated (< 30% coverage)
+--   M7-M9    — match flags, sparsely populated
+--   card2,card3,card5 — intermediate card attributes, semantics undocumented
+--   addr2    — very low cardinality (~4 values), limited investigative value
+--   dist2    — sparse, secondary distance metric
+CREATE VERTEX Transaction (
+  PRIMARY_ID txn_id  STRING,
+  amount             FLOAT,    -- transactions.csv:TransactionAmt
+  txn_timestamp      DATETIME, -- transactions.csv:ts (actual datetime, not TransactionDT)
+  channel            STRING,   -- transactions.csv:channel (online/in_person)
+  product_cd         STRING,   -- transactions.csv:ProductCD (H/W/C/S/R)
+  addr1              FLOAT,    -- transactions.csv:addr1 (billing region code — KEY for region anomaly)
+  dist1              FLOAT,    -- transactions.csv:dist1 (sparse; distance metric)
+  p_email_domain     STRING,   -- transactions.csv:P_emaildomain
+  r_email_domain     STRING,   -- transactions.csv:R_emaildomain
+  card1_token        STRING,   -- transactions.csv:card1 (numeric card token, as string)
+  card_network       STRING,   -- transactions.csv:card4
+  card_type          STRING,   -- transactions.csv:card6
+  c1                 FLOAT,    -- transactions.csv:C1 (count: cards linked to billing address)
+  c2                 FLOAT,    -- transactions.csv:C2 (count: cardholder transaction count)
+  d1                 FLOAT,    -- transactions.csv:D1 (days since last transaction on this card)
+  m4                 STRING,   -- transactions.csv:M4 (match level: M0/M1/M2)
+  m5                 STRING,   -- transactions.csv:M5 (match flag: T/F)
+  m6                 STRING,   -- transactions.csv:M6 (match flag: T/F)
+  risk_score         FLOAT,    -- transactions.csv:risk_score (pre-computed ML score 0-1)
+  transaction_dt     INT       -- transactions.csv:TransactionDT (raw epoch offset — secondary reference)
+) WITH primary_id_as_attribute="TRUE"
+
+-- DeviceProfile: identified by hash of normalized DeviceInfo string.
+-- Source: identity.csv:DeviceType, identity.csv:DeviceInfo
+-- device_id = sha256(device_info_normalized)[:16] — deterministic, collision-resistant for this dataset
+-- Only created when DeviceInfo is present AND non-trivial (len > 8 characters)
+-- Generic OS strings ("Windows", "MacOS") are not loaded as device profiles
+--   because they would link thousands of unrelated transactions (false positives)
+CREATE VERTEX DeviceProfile (
+  PRIMARY_ID device_id      STRING,
+  device_type               STRING,   -- identity.csv:DeviceType (mobile/desktop)
+  device_info               STRING,   -- identity.csv:DeviceInfo (raw string)
+  device_info_normalized    STRING    -- lowercased, stripped version used for ID generation
+) WITH primary_id_as_attribute="TRUE"
+
+-- ClosedCase: historical investigation record.
+-- Source: closed_cases_history.csv — ALL 5,565 rows loaded (not benchmark-scoped).
+-- This is the primary case memory store.
+CREATE VERTEX ClosedCase (
+  PRIMARY_ID case_id        STRING,
+  customer_id               STRING,   -- owning customer
+  card_id                   STRING,   -- card involved
+  opened_at                 DATETIME,
+  closed_at                 DATETIME,
+  outcome                   STRING,   -- confirmed_fraud | cleared
+  pattern                   STRING,   -- fraud typology label
+  first_fraud_txn_id        STRING,   -- empty for cleared cases
+  txn_ids                   STRING,   -- pipe-separated TransactionID list
+  n_txns                    INT,
+  exposure_usd              FLOAT,    -- 0.00 for cleared
+  connected_card_ids        STRING,   -- pipe-separated (sparse — 4 cases only)
+  actions_taken             STRING,   -- pipe-separated action codes
+  report_filed              BOOL,
+  analyst_notes             STRING
+) WITH primary_id_as_attribute="TRUE"
+
+-- InvestigationCase: active or completed benchmark investigation.
+-- Written by the investigation workflow after each case resolution.
+-- This is separate from ClosedCase (which is historical source data).
+CREATE VERTEX InvestigationCase (
+  PRIMARY_ID case_id        STRING,   -- format HHG-###
+  trigger_type              STRING,   -- risk_score | customer_report | analyst_request
+  trigger_text              STRING,
+  flagged_txn_id            STRING,
+  card_id                   STRING,
+  customer_id               STRING,
+  initial_risk_score        FLOAT,    -- 0.0 if trigger is customer_report (no model score)
+  opened_at                 DATETIME,
+  case_status               STRING,   -- open | investigating | closed_fraud | closed_cleared
+  outcome                   STRING,   -- confirmed_fraud | cleared | pending
+  pattern                   STRING,   -- assigned fraud pattern (or "none" if cleared)
+  exposure_usd              FLOAT,
+  actions_taken             STRING,   -- pipe-separated
+  sar_required              BOOL,
+  findings_summary          STRING,   -- human-readable investigation summary
+  evidence_json             STRING,   -- JSON-serialized evidence ledger (full audit trail)
+  nba_before_evidence       STRING,   -- pipe-separated: NBA before additional evidence round
+  nba_after_evidence        STRING,   -- pipe-separated: NBA after additional evidence round
+  closed_at                 DATETIME
+) WITH primary_id_as_attribute="TRUE"
+
+
+-- ============================================================
+-- EDGE TYPES (global schema level)
+-- ============================================================
+
+-- Customer → Transaction
+-- All transactions made by a customer.
+-- Source: transactions.csv:customer_id linkage
+CREATE DIRECTED EDGE HAS_TRANSACTION (FROM Customer, TO Transaction)
+
+-- Customer → Card
+-- Cards owned by a customer.
+-- Source: derived from closed_cases_history.csv:card_id prefix pattern (C#####-K#)
+CREATE DIRECTED EDGE OWNS_CARD (FROM Customer, TO Card)
+
+-- Transaction → Card
+-- Which card was used for a given transaction.
+-- Source: derived from shared card1_token + customer_id
+CREATE DIRECTED EDGE MADE_WITH_CARD (FROM Transaction, TO Card)
+
+-- Transaction → DeviceProfile
+-- Device/identity record for a transaction (when available).
+-- Source: identity.csv joined on TransactionID
+CREATE DIRECTED EDGE HAS_IDENTITY (FROM Transaction, TO DeviceProfile)
+
+-- Customer → ClosedCase
+-- Historical investigations associated with a customer.
+-- Source: closed_cases_history.csv:customer_id
+CREATE DIRECTED EDGE CUSTOMER_HAS_CASE (FROM Customer, TO ClosedCase)
+
+-- ClosedCase → Transaction
+-- Transactions that were part of a historical investigation.
+-- Source: closed_cases_history.csv:txn_ids (pipe-separated)
+-- Note: Only created for benchmark-scoped transactions (those in Transaction vertex).
+--       Not all historical case transactions are loaded.
+CREATE DIRECTED EDGE CASE_INCLUDES_TXN (FROM ClosedCase, TO Transaction)
+
+-- ClosedCase → Card
+-- Card involved in a historical investigation.
+-- Source: closed_cases_history.csv:card_id
+CREATE DIRECTED EDGE CASE_ON_CARD (FROM ClosedCase, TO Card)
+
+-- InvestigationCase → Transaction
+-- The flagged transaction that triggered the benchmark investigation.
+-- Source: case_pack.csv:flagged_txn_id
+CREATE DIRECTED EDGE INVESTIGATION_FLAGS_TXN (FROM InvestigationCase, TO Transaction)
+
+-- InvestigationCase → Customer
+-- Customer being investigated.
+-- Source: case_pack.csv:customer_id
+CREATE DIRECTED EDGE INVESTIGATION_FOR_CUSTOMER (FROM InvestigationCase, TO Customer)
+
+-- NOT included:
+--   SHARES_DEVICE (Transaction ↔ Transaction): Avoided because it generates O(n²) edges
+--   for popular generic device strings. Shared device detection uses 2-hop traversal:
+--   Transaction → DeviceProfile ← Transaction instead.
+
+
+-- ============================================================
+-- GRAPH DEFINITION
+-- ============================================================
+
+CREATE GRAPH FraudInvestigation (
+  Customer,
+  Card,
+  Transaction,
+  DeviceProfile,
+  ClosedCase,
+  InvestigationCase,
+  HAS_TRANSACTION,
+  OWNS_CARD,
+  MADE_WITH_CARD,
+  HAS_IDENTITY,
+  CUSTOMER_HAS_CASE,
+  CASE_INCLUDES_TXN,
+  CASE_ON_CARD,
+  INVESTIGATION_FLAGS_TXN,
+  INVESTIGATION_FOR_CUSTOMER
+)

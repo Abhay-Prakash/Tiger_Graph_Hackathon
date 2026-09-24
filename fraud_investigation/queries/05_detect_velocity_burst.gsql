@@ -1,0 +1,79 @@
+// ============================================================
+// Query 05: detect_velocity_burst
+// ============================================================
+// Purpose:  Detect short-window transaction bursts and card testing behavior
+//           (multiple transactions on same card/customer within window_hours).
+//
+// Inputs:
+//   customer_id       : Customer identifier (STRING)
+//   flagged_txn_id    : Flagged transaction ID (STRING)
+//   window_hours      : Time window size in hours (INT, e.g. 24)
+//
+// Outputs:
+//   txn_count_in_window    — Number of transactions in time window
+//   total_amount_in_window — Cumulative USD amount in window
+//   has_velocity_burst     — TRUE if >3 transactions in window
+//   has_same_day_d1        — TRUE if D1 == 0.0 (same day transaction)
+// ============================================================
+
+CREATE OR REPLACE QUERY detect_velocity_burst(
+  STRING customer_id,
+  STRING flagged_txn_id,
+  INT    window_hours
+)
+FOR GRAPH FraudInvestigation
+SYNTAX V2 {
+
+  TYPEDEF TUPLE<
+    STRING   txn_id,
+    FLOAT    amount,
+    DATETIME txn_timestamp,
+    STRING   channel,
+    FLOAT    d1,
+    FLOAT    risk_score
+  > BurstTxnRecord;
+
+  ListAccum<BurstTxnRecord> @@window_txns;
+  MinAccum<DATETIME>        @@flagged_ts;
+  SumAccum<INT>             @@txn_count;
+  SumAccum<FLOAT>           @@total_amount;
+  OrAccum                   @@has_d1_zero;
+
+  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  FlaggedTxn = SELECT t FROM FlaggedTxn:t
+    ACCUM @@flagged_ts += t.txn_timestamp;
+
+  INT flagged_epoch = datetime_to_epoch(@@flagged_ts);
+  INT start_epoch   = flagged_epoch - (window_hours * 3600);
+
+  Cust = {to_vertex(customer_id, "Customer")};
+  WindowTxns = SELECT t FROM Cust:c -(HAS_TRANSACTION>)- Transaction:t
+    WHERE datetime_to_epoch(t.txn_timestamp) >= start_epoch
+      AND datetime_to_epoch(t.txn_timestamp) <= flagged_epoch
+    ACCUM
+      @@window_txns += BurstTxnRecord(
+        t.txn_id, t.amount, t.txn_timestamp, t.channel, t.d1, t.risk_score
+      ),
+      @@txn_count += 1,
+      @@total_amount += t.amount,
+      IF t.d1 == 0.0 THEN
+        @@has_d1_zero += TRUE
+      END
+    ORDER BY t.txn_timestamp DESC;
+
+  BOOL has_velocity_burst = FALSE;
+  IF @@txn_count >= 3 THEN
+    has_velocity_burst = TRUE;
+  END;
+
+  PRINT customer_id           AS customer_id;
+  PRINT flagged_txn_id        AS flagged_txn_id;
+  PRINT window_hours          AS window_hours;
+  PRINT @@txn_count           AS txn_count_in_window;
+  PRINT @@total_amount        AS total_amount_in_window;
+  PRINT has_velocity_burst    AS has_velocity_burst;
+  PRINT @@has_d1_zero         AS has_same_day_d1;
+  PRINT @@window_txns         AS window_transactions;
+}
+
+INSTALL QUERY detect_velocity_burst

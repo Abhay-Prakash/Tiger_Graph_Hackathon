@@ -1,0 +1,67 @@
+// ============================================================
+// Query 03: detect_region_anomaly
+// ============================================================
+// Purpose:  Compare the flagged transaction's addr1 against the
+//           customer's historical billing region distribution to
+//           detect out-of-region activity.
+//
+// Inputs:
+//   customer_id    : Customer identifier (STRING)
+//   flagged_txn_id : Flagged transaction ID (STRING)
+//
+// Outputs:
+//   flagged_addr1           — addr1 of flagged transaction
+//   home_region             — most frequent historical addr1 for customer
+//   is_anomalous            — TRUE if flagged_addr1 != home_region
+//   historical_region_counts— distribution of past transactions across regions
+// ============================================================
+
+CREATE OR REPLACE QUERY detect_region_anomaly(
+  STRING customer_id,
+  STRING flagged_txn_id
+)
+FOR GRAPH FraudInvestigation
+SYNTAX V2 {
+
+  MapAccum<FLOAT, INT> @@region_counts;
+  MaxAccum<FLOAT>      @@flagged_addr1;
+  SumAccum<INT>        @@total_past_txns;
+
+  // 1. Get flagged transaction's addr1
+  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  FlaggedTxn = SELECT t FROM FlaggedTxn:t
+    ACCUM @@flagged_addr1 += t.addr1;
+
+  // 2. Get customer's past transactions and map region distribution
+  Cust = {to_vertex(customer_id, "Customer")};
+  PastTxns = SELECT t FROM Cust:c -(HAS_TRANSACTION>)- Transaction:t
+    WHERE t.txn_id != flagged_txn_id AND t.addr1 > 0
+    ACCUM
+      @@region_counts += (t.addr1 -> 1),
+      @@total_past_txns += 1;
+
+  FLOAT home_region = -1.0;
+  INT max_count = 0;
+  FOREACH (addr, cnt) IN @@region_counts DO
+    IF cnt > max_count THEN
+      max_count = cnt;
+      home_region = addr;
+    END;
+  END;
+
+  BOOL is_anomalous = FALSE;
+  IF @@flagged_addr1 > 0 AND home_region > 0 AND @@flagged_addr1 != home_region THEN
+    is_anomalous = TRUE;
+  END;
+
+  PRINT customer_id              AS customer_id;
+  PRINT flagged_txn_id           AS flagged_txn_id;
+  PRINT @@flagged_addr1          AS flagged_addr1;
+  PRINT home_region              AS home_region;
+  PRINT max_count                AS home_region_txn_count;
+  PRINT @@total_past_txns        AS total_past_txns;
+  PRINT is_anomalous             AS is_anomalous;
+  PRINT @@region_counts          AS historical_region_counts;
+}
+
+INSTALL QUERY detect_region_anomaly

@@ -1,0 +1,81 @@
+// ============================================================
+// Query 02: get_customer_case_history
+// ============================================================
+// Purpose:  Retrieve all closed historical investigation cases for
+//           a given customer. This is the primary case memory query.
+//           ALL 5,565 closed cases are in the graph; this returns
+//           only those matching the customer.
+//
+// Inputs:
+//   customer_id : Customer identifier (e.g. "C09933")
+//
+// Outputs (printed as JSON):
+//   @@cases                   — list of all closed cases for customer
+//   @@confirmed_fraud_count   — count of confirmed fraud cases
+//   @@cleared_count           — count of cleared cases
+//   @@total_exposure          — total confirmed exposure across all cases
+//   @@patterns                — set of distinct fraud patterns seen
+//
+// Bounded result: returns all matching cases (no artificial limit;
+//   customer with most cases observed: 20 in benchmark set).
+// Evidence provenance: "closed_cases_history.csv"
+// ============================================================
+
+CREATE OR REPLACE QUERY get_customer_case_history(
+  STRING customer_id
+)
+FOR GRAPH FraudInvestigation
+SYNTAX V2 {
+
+  TYPEDEF TUPLE<
+    STRING   case_id,
+    DATETIME opened_at,
+    DATETIME closed_at,
+    STRING   outcome,
+    STRING   pattern,
+    FLOAT    exposure_usd,
+    STRING   actions_taken,
+    BOOL     report_filed,
+    STRING   analyst_notes,
+    INT      n_txns,
+    STRING   first_fraud_txn_id,
+    STRING   card_id
+  > CaseRecord;
+
+  ListAccum<CaseRecord> @@cases;
+  SumAccum<INT>         @@confirmed_fraud_count;
+  SumAccum<INT>         @@cleared_count;
+  SumAccum<FLOAT>       @@total_exposure;
+  SetAccum<STRING>      @@patterns;
+
+  // ---- Step 1: Locate customer by primary key ----
+  CustVertex = {to_vertex(customer_id, "Customer")};
+
+  // ---- Step 2: Traverse to all closed cases for this customer ----
+  CaseSet = SELECT cc FROM CustVertex:c -(CUSTOMER_HAS_CASE>)- ClosedCase:cc
+    ACCUM
+      @@cases += CaseRecord(
+        cc.case_id,   cc.opened_at,   cc.closed_at,
+        cc.outcome,   cc.pattern,     cc.exposure_usd,
+        cc.actions_taken, cc.report_filed, cc.analyst_notes,
+        cc.n_txns,    cc.first_fraud_txn_id, cc.card_id
+      ),
+      @@total_exposure += cc.exposure_usd,
+      @@patterns       += cc.pattern,
+      IF cc.outcome == "confirmed_fraud" THEN
+        @@confirmed_fraud_count += 1
+      ELSE
+        @@cleared_count += 1
+      END
+    ORDER BY cc.closed_at DESC;
+
+  // ---- Output ----
+  PRINT customer_id              AS customer_id;
+  PRINT @@cases                  AS cases;
+  PRINT @@confirmed_fraud_count  AS confirmed_fraud_count;
+  PRINT @@cleared_count          AS cleared_count;
+  PRINT @@total_exposure         AS total_historical_exposure_usd;
+  PRINT @@patterns               AS distinct_patterns_seen;
+}
+
+INSTALL QUERY get_customer_case_history
