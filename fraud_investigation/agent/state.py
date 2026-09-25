@@ -60,3 +60,5 @@ class InvestigationState(TypedDict, total=False):
     # Observability & Audit Trail
     decision_history: List[dict]          # Timestamped decision events
     agent_trace: List[str]                # Detailed execution step log
+    mcp_protocol_trace: List[dict]        # initialize/tools-list/tools-call records
+    graph_transport_failures: List[dict]  # Explicit unavailable/failed graph reads

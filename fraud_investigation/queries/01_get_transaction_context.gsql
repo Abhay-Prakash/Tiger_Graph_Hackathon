@@ -23,7 +23,7 @@ CREATE OR REPLACE QUERY get_transaction_context(
   STRING flagged_txn_id,
   INT    lookback_days
 )
-FOR GRAPH FraudInvestigation
+FOR GRAPH HHGOA_Fraud
 SYNTAX V2 {
 
   TYPEDEF TUPLE<
@@ -47,8 +47,8 @@ SYNTAX V2 {
   MinAccum<DATETIME>   @@flagged_ts;  // used for cutoff calculation
 
   // ---- Step 1: Locate the flagged transaction by primary key ----
-  // to_vertex() is O(1) primary-key lookup — does not scan all transactions.
-  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  AllTxns = { Transaction.* };
+  FlaggedTxn = SELECT t FROM AllTxns:t WHERE t.txn_id == flagged_txn_id;
 
   // Capture timestamp for window calculation
   FlaggedTxn = SELECT t FROM FlaggedTxn:t

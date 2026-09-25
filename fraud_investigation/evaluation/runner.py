@@ -16,7 +16,9 @@ from ..evidence.ledger import EvidenceLedger
 logger = logging.getLogger(__name__)
 
 
-def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) -> Dict[str, Any]:
+def evaluate_single_case(
+    case_data: Dict[str, Any], conn: Optional[Any] = None, live_mcp: bool = False
+) -> Dict[str, Any]:
     """
     Evaluate a single benchmark case using the production agent workflow.
 
@@ -37,7 +39,7 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
     final_state = {}
 
     try:
-        final_state = run_fraud_investigation(case_data, conn=conn)
+        final_state = run_fraud_investigation(case_data, conn=conn, live_mcp=live_mcp)
     except Exception as e:
         logger.error("Error investigating case %s: %s", case_id, e, exc_info=True)
         error_msg = str(e)
@@ -46,6 +48,7 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
 
     # Extract ledger stats & IDs
     evidence_ids = []
+    evidence_gathered = []
     evidence_count = 0
     if "evidence_ledger_json" in final_state:
         raw = final_state["evidence_ledger_json"]
@@ -60,6 +63,7 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
             else:
                 raise ValueError(f"Unexpected evidence_ledger_json type: {type(raw)}")
             evidence_ids = [e.evidence_id for e in ledger.all]
+            evidence_gathered = [e.to_dict() for e in ledger.all]
             evidence_count = len(ledger.all)
         except Exception as _exc:
             logger.warning("Could not deserialise evidence ledger for %s: %s", case_id, _exc)
@@ -74,6 +78,13 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
 
     # Extract citations
     citations = final_state.get("evidence_citations", [])
+    protocol_trace = list(final_state.get("mcp_protocol_trace", []))
+    transport_failures = list(final_state.get("graph_transport_failures", []))
+    tool_calls = [event for event in protocol_trace if event.get("event") == "tools/call"]
+    contradiction_evidence = [
+        item for item in evidence_gathered
+        if item.get("contradicts") not in (None, "", "none", "None", [])
+    ]
 
     telemetry = {
         "case_id": case_id,
@@ -88,8 +99,11 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
         "risk_level": final_state.get("risk_level", "unknown"),
         "confidence": final_state.get("confidence", 0.0),
         "uncertainty": final_state.get("uncertainty", 0.0),
+        "evidence_sufficient": final_state.get("evidence_sufficient", False),
+        "missing_evidence": final_state.get("missing_evidence", []),
         "evidence_ids": evidence_ids,
         "evidence_count": evidence_count,
+        "evidence_gathered": evidence_gathered,
         "evidence_citations": citations,
         "reasoning_source": final_state.get("reasoning_source", "unknown"),
         "recommended_actions": final_state.get("recommended_actions", []),
@@ -98,9 +112,22 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
         "executed_actions": final_state.get("executed_actions", []),
         "approval_route": final_state.get("approval_route", "unknown"),
         "additional_evidence_rounds": final_state.get("additional_evidence_rounds", 0),
+        "additional_evidence_requested": final_state.get("evidence_requests", []),
+        "additional_evidence_responses": final_state.get("evidence_responses", []),
         "nba_before": final_state.get("nba_before_additional_evidence"),
         "nba_after": final_state.get("nba_after_additional_evidence"),
         "policy_version": policy_version,
+        "policy_decision": policy_dec,
+        "sar_requirement": policy_dec.get("sar_required"),
+        "exposure_usd": final_state.get("exposure_usd", 0.0),
+        "mcp_transport": "stdio_mcp" if live_mcp else "offline_mock",
+        "mcp_protocol_trace": protocol_trace,
+        "mcp_failures": transport_failures,
+        "mcp_tool_calls": tool_calls,
+        "writeback_observed": any(
+            event.get("tool") == "tigergraph__add_nodes" for event in tool_calls
+        ),
+        "contradiction_evidence": contradiction_evidence,
         "explanation": final_state.get("explanation", ""),
         "duration_seconds": round(duration, 4),
         "error": error_msg,
@@ -110,7 +137,10 @@ def evaluate_single_case(case_data: Dict[str, Any], conn: Optional[Any] = None) 
 
 
 def run_benchmark_eval(
-    cases: List[Dict[str, Any]], conn: Optional[Any] = None, delay_between_cases: float = 1.0
+    cases: List[Dict[str, Any]],
+    conn: Optional[Any] = None,
+    delay_between_cases: float = 1.0,
+    live_mcp: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Run evaluation across all benchmark cases.
@@ -133,7 +163,7 @@ def run_benchmark_eval(
 
     for i, case in enumerate(cases, 1):
         logger.info("Evaluating benchmark case [%d/%d]: %s", i, total, case["case_id"])
-        res = evaluate_single_case(case, conn=conn)
+        res = evaluate_single_case(case, conn=conn, live_mcp=live_mcp)
         results.append(res)
 
         if delay_between_cases > 0 and i < total:

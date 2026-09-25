@@ -24,13 +24,13 @@
 CREATE OR REPLACE QUERY get_customer_case_history(
   STRING customer_id
 )
-FOR GRAPH FraudInvestigation
+FOR GRAPH HHGOA_Fraud
 SYNTAX V2 {
 
   TYPEDEF TUPLE<
     STRING   case_id,
-    DATETIME opened_at,
-    DATETIME closed_at,
+    STRING   opened_at,
+    STRING   closed_at,
     STRING   outcome,
     STRING   pattern,
     FLOAT    exposure_usd,
@@ -49,7 +49,8 @@ SYNTAX V2 {
   SetAccum<STRING>      @@patterns;
 
   // ---- Step 1: Locate customer by primary key ----
-  CustVertex = {to_vertex(customer_id, "Customer")};
+  AllCust = { Customer.* };
+  CustVertex = SELECT c FROM AllCust:c WHERE c.customer_id == customer_id;
 
   // ---- Step 2: Traverse to all closed cases for this customer ----
   CaseSet = SELECT cc FROM CustVertex:c -(CUSTOMER_HAS_CASE>)- ClosedCase:cc

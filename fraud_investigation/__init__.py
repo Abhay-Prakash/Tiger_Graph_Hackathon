@@ -5,4 +5,4 @@ Isolated under fraud_investigation/ — does NOT modify tigergraph-mcp package.
 """
 
 __version__ = "0.1.0"
-GRAPH_NAME = "FraudInvestigation"
+GRAPH_NAME = "HHGOA_Fraud"

@@ -41,7 +41,9 @@ def main() -> int:
     logger.info("Loaded %d benchmark cases successfully.", len(cases))
 
     logger.info("Executing Phase 3 benchmark evaluation across all 20 cases...")
-    results = run_benchmark_eval(cases, conn=None, delay_between_cases=0.5)
+    results = run_benchmark_eval(
+        cases, conn=None, delay_between_cases=0.5, live_mcp=True
+    )
 
     logger.info("Calculating evaluation metrics...")
     metrics = calculate_evaluation_metrics(results)

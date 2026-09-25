@@ -24,19 +24,47 @@ class AgentTools:
     Exposes graph query tools and controlled evidence request tools to agent nodes via TigerGraphMCPClient.
     """
 
-    def __init__(self, conn: Optional[Any] = None, mcp_client: Optional[TigerGraphMCPClient] = None) -> None:
-        self.mcp_client = mcp_client or TigerGraphMCPClient(conn=conn)
-        self.queries = InvestigationQueries(conn) if conn else None
+    def __init__(
+        self,
+        conn: Optional[Any] = None,
+        mcp_client: Optional[TigerGraphMCPClient] = None,
+        live_mcp: bool = False,
+    ) -> None:
+        # ``conn`` remains accepted for compatibility but cannot select a direct
+        # or live transport. Live MCP is always an explicit caller decision.
+        self.mcp_client = mcp_client or TigerGraphMCPClient(
+            conn=conn, use_mcp=live_mcp, start_session=live_mcp
+        )
+        # InvestigationQueries now normalizes query results only; AgentTools never
+        # invokes its legacy direct-query methods.
+        self.queries = InvestigationQueries(None)
+        self.graph_transport_failures: List[Dict[str, str]] = []
 
     @property
     def transport_name(self) -> str:
         return self.mcp_client.transport_name
 
+    def _offline_mode(self) -> bool:
+        return self.mcp_client.transport_name == "mock_mcp"
+
+    def _record_graph_failure(self, operation: str) -> List[Evidence]:
+        self.graph_transport_failures.append({
+            "operation": operation,
+            "transport": self.mcp_client.transport_name,
+            "error": self.mcp_client.failure_reason or "MCP graph operation failed",
+        })
+        logger.warning("Graph evidence unavailable for %s via %s", operation, self.mcp_client.transport_name)
+        return []
+
     def fetch_transaction_context(self, flagged_txn_id: str) -> List[Evidence]:
         """Fetch transaction context via TigerGraph MCP tool and return normalized Evidence objects."""
-        if self.mcp_client.is_live() and self.queries:
+        if self.mcp_client.is_live():
             q_res = self.mcp_client.run_query_get_transaction_context(flagged_txn_id)
-            return self.queries.extract_context_evidence(q_res, flagged_txn_id)
+            if self.mcp_client.last_call_succeeded:
+                return self.queries.extract_context_evidence(q_res, flagged_txn_id)
+            return self._record_graph_failure("get_transaction_context")
+        if not self._offline_mode():
+            return self._record_graph_failure("get_transaction_context")
         
         # Offline mock fallback
         return [
@@ -53,9 +81,13 @@ class AgentTools:
 
     def fetch_customer_case_history(self, customer_id: str) -> List[Evidence]:
         """Fetch historical closed cases via TigerGraph MCP tool and return normalized Evidence objects."""
-        if self.mcp_client.is_live() and self.queries:
+        if self.mcp_client.is_live():
             q_res = self.mcp_client.run_query_get_customer_case_history(customer_id)
-            return self.queries.extract_history_evidence(q_res, customer_id)
+            if self.mcp_client.last_call_succeeded:
+                return self.queries.extract_history_evidence(q_res, customer_id)
+            return self._record_graph_failure("get_customer_case_history")
+        if not self._offline_mode():
+            return self._record_graph_failure("get_customer_case_history")
         
         return [
             make_evidence(
@@ -71,10 +103,15 @@ class AgentTools:
 
     def fetch_region_anomaly(self, customer_id: str, flagged_txn_id: str) -> List[Evidence]:
         """Fetch region baseline calculation via TigerGraph MCP tool and return normalized Evidence objects."""
-        if self.mcp_client.is_live() and self.queries:
+        if self.mcp_client.is_live():
             q_res = self.mcp_client.run_query_detect_region_anomaly(customer_id, flagged_txn_id)
-            return self.queries.extract_region_evidence(q_res, flagged_txn_id)
+            if self.mcp_client.last_call_succeeded:
+                return self.queries.extract_region_evidence(q_res, flagged_txn_id)
+            return self._record_graph_failure("detect_region_anomaly")
+        if not self._offline_mode():
+            return self._record_graph_failure("detect_region_anomaly")
 
+        # This fixture is permitted only in explicit offline/mock mode.
         if flagged_txn_id == "3514948":  # HHG-007 benchmark transaction
             return [
                 make_evidence(
@@ -92,16 +129,24 @@ class AgentTools:
 
     def fetch_shared_device(self, flagged_txn_id: str) -> List[Evidence]:
         """Fetch 2-hop device sharing analysis via TigerGraph MCP tool and return normalized Evidence objects."""
-        if self.mcp_client.is_live() and self.queries:
+        if self.mcp_client.is_live():
             q_res = self.mcp_client.run_query_detect_shared_device(flagged_txn_id)
-            return self.queries.extract_device_evidence(q_res, flagged_txn_id)
+            if self.mcp_client.last_call_succeeded:
+                return self.queries.extract_device_evidence(q_res, flagged_txn_id)
+            return self._record_graph_failure("detect_shared_device")
+        if not self._offline_mode():
+            return self._record_graph_failure("detect_shared_device")
         return []
 
     def fetch_velocity_burst(self, customer_id: str, flagged_txn_id: str) -> List[Evidence]:
         """Fetch velocity burst analysis via TigerGraph MCP tool and return normalized Evidence objects."""
-        if self.mcp_client.is_live() and self.queries:
+        if self.mcp_client.is_live():
             q_res = self.mcp_client.run_query_detect_velocity_burst(customer_id, flagged_txn_id)
-            return self.queries.extract_velocity_evidence(q_res, flagged_txn_id)
+            if self.mcp_client.last_call_succeeded:
+                return self.queries.extract_velocity_evidence(q_res, flagged_txn_id)
+            return self._record_graph_failure("detect_velocity_burst")
+        if not self._offline_mode():
+            return self._record_graph_failure("detect_velocity_burst")
         return []
 
     def request_controlled_evidence(self, request_type: str, case_id: str, customer_id: str) -> Dict[str, Any]:
