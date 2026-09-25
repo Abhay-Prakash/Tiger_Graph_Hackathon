@@ -7,3 +7,4 @@ httpx
 mcp
 tigergraph-mcp==1.0.3
 pyTigerGraph
+streamlit
