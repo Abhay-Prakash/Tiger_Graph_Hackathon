@@ -25,8 +25,12 @@ class InvestigationQueries:
     def get_transaction_context(self, flagged_txn_id: str, lookback_days: int = 30) -> Dict[str, Any]:
         params = {"flagged_txn_id": flagged_txn_id, "lookback_days": lookback_days}
         res = self.conn.runInstalledQuery("get_transaction_context", params)
-        if isinstance(res, list) and len(res) > 0:
-            return res[0]
+        if isinstance(res, list):
+            res_data = {}
+            for item in res:
+                if isinstance(item, dict):
+                    res_data.update(item)
+            return res_data
         return res
 
     def extract_context_evidence(self, query_res: Dict[str, Any], flagged_txn_id: str) -> List[Evidence]:
@@ -75,8 +79,12 @@ class InvestigationQueries:
     def get_customer_case_history(self, customer_id: str) -> Dict[str, Any]:
         params = {"customer_id": customer_id}
         res = self.conn.runInstalledQuery("get_customer_case_history", params)
-        if isinstance(res, list) and len(res) > 0:
-            return res[0]
+        if isinstance(res, list):
+            res_data = {}
+            for item in res:
+                if isinstance(item, dict):
+                    res_data.update(item)
+            return res_data
         return res
 
     def extract_history_evidence(self, query_res: Dict[str, Any], customer_id: str) -> List[Evidence]:
@@ -125,8 +133,12 @@ class InvestigationQueries:
     def detect_region_anomaly(self, customer_id: str, flagged_txn_id: str) -> Dict[str, Any]:
         params = {"customer_id": customer_id, "flagged_txn_id": flagged_txn_id}
         res = self.conn.runInstalledQuery("detect_region_anomaly", params)
-        if isinstance(res, list) and len(res) > 0:
-            return res[0]
+        if isinstance(res, list):
+            res_data = {}
+            for item in res:
+                if isinstance(item, dict):
+                    res_data.update(item)
+            return res_data
         return res
 
     def extract_region_evidence(self, query_res: Dict[str, Any], flagged_txn_id: str) -> List[Evidence]:
@@ -170,8 +182,12 @@ class InvestigationQueries:
     def detect_shared_device(self, flagged_txn_id: str) -> Dict[str, Any]:
         params = {"flagged_txn_id": flagged_txn_id}
         res = self.conn.runInstalledQuery("detect_shared_device", params)
-        if isinstance(res, list) and len(res) > 0:
-            return res[0]
+        if isinstance(res, list):
+            res_data = {}
+            for item in res:
+                if isinstance(item, dict):
+                    res_data.update(item)
+            return res_data
         return res
 
     def extract_device_evidence(self, query_res: Dict[str, Any], flagged_txn_id: str) -> List[Evidence]:
@@ -232,8 +248,12 @@ class InvestigationQueries:
     def detect_velocity_burst(self, customer_id: str, flagged_txn_id: str, window_hours: int = 24) -> Dict[str, Any]:
         params = {"customer_id": customer_id, "flagged_txn_id": flagged_txn_id, "window_hours": window_hours}
         res = self.conn.runInstalledQuery("detect_velocity_burst", params)
-        if isinstance(res, list) and len(res) > 0:
-            return res[0]
+        if isinstance(res, list):
+            res_data = {}
+            for item in res:
+                if isinstance(item, dict):
+                    res_data.update(item)
+            return res_data
         return res
 
     def extract_velocity_evidence(self, query_res: Dict[str, Any], flagged_txn_id: str) -> List[Evidence]:

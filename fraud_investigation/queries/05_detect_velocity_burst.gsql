@@ -21,7 +21,7 @@ CREATE OR REPLACE QUERY detect_velocity_burst(
   STRING flagged_txn_id,
   INT    window_hours
 )
-FOR GRAPH FraudInvestigation
+FOR GRAPH HHGOA_Fraud
 SYNTAX V2 {
 
   TYPEDEF TUPLE<
@@ -39,14 +39,16 @@ SYNTAX V2 {
   SumAccum<FLOAT>           @@total_amount;
   OrAccum                   @@has_d1_zero;
 
-  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  AllTxns = { Transaction.* };
+  FlaggedTxn = SELECT t FROM AllTxns:t WHERE t.txn_id == flagged_txn_id;
   FlaggedTxn = SELECT t FROM FlaggedTxn:t
     ACCUM @@flagged_ts += t.txn_timestamp;
 
   INT flagged_epoch = datetime_to_epoch(@@flagged_ts);
   INT start_epoch   = flagged_epoch - (window_hours * 3600);
 
-  Cust = {to_vertex(customer_id, "Customer")};
+  AllCust = { Customer.* };
+  Cust = SELECT c FROM AllCust:c WHERE c.customer_id == customer_id;
   WindowTxns = SELECT t FROM Cust:c -(HAS_TRANSACTION>)- Transaction:t
     WHERE datetime_to_epoch(t.txn_timestamp) >= start_epoch
       AND datetime_to_epoch(t.txn_timestamp) <= flagged_epoch

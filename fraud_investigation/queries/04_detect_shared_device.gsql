@@ -18,7 +18,7 @@
 CREATE OR REPLACE QUERY detect_shared_device(
   STRING flagged_txn_id
 )
-FOR GRAPH FraudInvestigation
+FOR GRAPH HHGOA_Fraud
 SYNTAX V2 {
 
   TYPEDEF TUPLE<
@@ -36,7 +36,8 @@ SYNTAX V2 {
   MaxAccum<STRING>           @@device_type;
   SumAccum<INT>              @@shared_txn_count;
 
-  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  AllTxns = { Transaction.* };
+  FlaggedTxn = SELECT t FROM AllTxns:t WHERE t.txn_id == flagged_txn_id;
 
   // 1-hop to DeviceProfile
   DevProfile = SELECT d FROM FlaggedTxn:t -(HAS_IDENTITY>)- DeviceProfile:d

@@ -80,10 +80,15 @@ def calculate_evaluation_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any
     policy_violations = forbidden_action_leakage + mandatory_action_omissions
 
     # 3. MCP Boundary Metrics
-    # Every case fetches transaction context (Query 01) and customer history (Query 02) via MCP
-    mcp_calls = total_cases * 2
-    graph_queries = total_cases * 2
-    mcp_failures = sum(1 for r in results if r.get("error") and "mcp" in str(r.get("error")).lower())
+    tool_calls = [
+        event for result in results for event in result.get("mcp_tool_calls", [])
+    ]
+    mcp_calls = len(tool_calls)
+    graph_queries = sum(
+        1 for event in tool_calls
+        if event.get("tool") == "tigergraph__run_installed_query"
+    )
+    mcp_failures = sum(len(r.get("mcp_failures", [])) for r in results)
     direct_pytigergraph_bypasses = 0  # Verified by architectural static boundary check
 
     # 4. Agentic Behavior Metrics

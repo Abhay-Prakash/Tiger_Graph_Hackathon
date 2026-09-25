@@ -7,6 +7,9 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -21,6 +24,8 @@ def main() -> None:
     parser.add_argument("--host", type=str, default=os.getenv("TG_HOST", "http://127.0.0.1"), help="TigerGraph host URL.")
     parser.add_argument("--username", type=str, default=os.getenv("TG_USERNAME", "tigergraph"), help="TigerGraph username.")
     parser.add_argument("--password", type=str, default=os.getenv("TG_PASSWORD", "tigergraph"), help="TigerGraph password.")
+    parser.add_argument("--secret", type=str, default=os.getenv("TG_SECRET", ""), help="TigerGraph database secret.")
+    parser.add_argument("--skip-queries", action="store_true", help="Skip GSQL query installation.")
     parser.add_argument("--dry-run", action="store_true", help="Parse files without pushing to TigerGraph.")
 
     args = parser.parse_args()
@@ -49,19 +54,34 @@ def main() -> None:
         print("Error: pyTigerGraph is required. Install via pip install pyTigerGraph.")
         sys.exit(1)
 
-    print(f"Connecting to TigerGraph at {args.host}...")
-    conn = tg.TigerGraphConnection(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-    )
+    secret = args.secret or os.getenv("TG_SECRET", "")
+    username = args.username or os.getenv("TG_USERNAME", "tigergraph")
+    password = args.password or os.getenv("TG_PASSWORD", "tigergraph")
+
+    if secret:
+        print(f"Connecting to TigerGraph at {args.host} (graph: {GRAPH_NAME}) using database secret...")
+        conn = tg.TigerGraphConnection(
+            host=args.host,
+            graphname=GRAPH_NAME,
+            gsqlSecret=secret,
+        )
+        conn.getToken(secret)
+    else:
+        print(f"Connecting to TigerGraph at {args.host} (graph: {GRAPH_NAME}) using username/password...")
+        conn = tg.TigerGraphConnection(
+            host=args.host,
+            graphname=GRAPH_NAME,
+            username=username,
+            password=password,
+        )
 
     # 1. Schema
     apply_schema(conn, reset=args.reset)
     conn.graphname = GRAPH_NAME
 
-    # 2. Queries
-    install_queries(conn)
+    # 2. Queries (optional)
+    if not args.skip_queries:
+        install_queries(conn)
 
     # 3. Load Data
     stats = load_all(conn, dataset_path)

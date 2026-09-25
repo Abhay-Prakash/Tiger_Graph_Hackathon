@@ -20,7 +20,7 @@ CREATE OR REPLACE QUERY detect_region_anomaly(
   STRING customer_id,
   STRING flagged_txn_id
 )
-FOR GRAPH FraudInvestigation
+FOR GRAPH HHGOA_Fraud
 SYNTAX V2 {
 
   MapAccum<FLOAT, INT> @@region_counts;
@@ -28,12 +28,14 @@ SYNTAX V2 {
   SumAccum<INT>        @@total_past_txns;
 
   // 1. Get flagged transaction's addr1
-  FlaggedTxn = {to_vertex(flagged_txn_id, "Transaction")};
+  AllTxns = { Transaction.* };
+  FlaggedTxn = SELECT t FROM AllTxns:t WHERE t.txn_id == flagged_txn_id;
   FlaggedTxn = SELECT t FROM FlaggedTxn:t
     ACCUM @@flagged_addr1 += t.addr1;
 
   // 2. Get customer's past transactions and map region distribution
-  Cust = {to_vertex(customer_id, "Customer")};
+  AllCust = { Customer.* };
+  Cust = SELECT c FROM AllCust:c WHERE c.customer_id == customer_id;
   PastTxns = SELECT t FROM Cust:c -(HAS_TRANSACTION>)- Transaction:t
     WHERE t.txn_id != flagged_txn_id AND t.addr1 > 0
     ACCUM

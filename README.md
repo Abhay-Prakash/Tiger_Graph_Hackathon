@@ -229,6 +229,14 @@ InvestigationCase Vertex
 
 ## 10. Live Demo & Reproduction Guide
 
+### Streamlit Analyst Console
+
+```bash
+streamlit run demo_app/app.py
+```
+
+The analyst console renders the final state from the existing live MCP investigation runner. It does not make fraud, evidence, or policy decisions in the frontend. See [`docs/DEMO_UI_GUIDE.md`](docs/DEMO_UI_GUIDE.md) for prerequisites and the HHG-007, HHG-001, and HHG-014 priority investigation flows.
+
 ### Run Demo Cases (CLI Output)
 
 ```bash

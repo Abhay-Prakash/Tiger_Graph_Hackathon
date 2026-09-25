@@ -9,25 +9,31 @@ from ..policy.engine import PolicyEngine
 from .graph import build_investigation_graph
 from .nodes import WorkflowNodes
 from .state import InvestigationState
+from .mcp_client import TigerGraphMCPClient
 from .tools import AgentTools
 
 logger = logging.getLogger(__name__)
 
 
-def run_fraud_investigation(case_data: Dict[str, Any], conn: Optional[Any] = None) -> InvestigationState:
+def run_fraud_investigation(
+    case_data: Dict[str, Any], conn: Optional[Any] = None, live_mcp: bool = False
+) -> InvestigationState:
     """
     Run a benchmark case through the LangGraph investigation workflow.
 
     Parameters
     ----------
     case_data : dict containing case_id, customer_id, card_id, flagged_txn_id, trigger_type, trigger_text, risk_score.
-    conn      : Optional pyTigerGraph connection instance.
+    conn      : Deprecated compatibility argument. It is never used by the agent.
+    live_mcp  : ``True`` starts a real stdio MCP session; ``False`` is explicit
+                offline/mock mode. The deprecated ``conn`` argument is ignored.
 
     Returns
     -------
     InvestigationState  — complete final state object.
     """
-    tools = AgentTools(conn=conn)
+    mcp_client = TigerGraphMCPClient(use_mcp=live_mcp, start_session=live_mcp)
+    tools = AgentTools(mcp_client=mcp_client)
     policy_engine = PolicyEngine()
     nodes = WorkflowNodes(tools=tools, policy_engine=policy_engine)
     app = build_investigation_graph(nodes)
@@ -47,7 +53,15 @@ def run_fraud_investigation(case_data: Dict[str, Any], conn: Optional[Any] = Non
     }
 
     logger.info("Starting LangGraph investigation for case %s", case_data["case_id"])
-    final_state = app.invoke(initial_state)
-    logger.info("Completed investigation for case %s. Outcome: %s", case_data["case_id"], final_state.get("outcome"))
-
-    return final_state
+    try:
+        final_state = app.invoke(initial_state)
+        final_state["mcp_protocol_trace"] = list(mcp_client.protocol_trace)
+        final_state["graph_transport_failures"] = list(tools.graph_transport_failures)
+        if tools.graph_transport_failures:
+            final_state["agent_trace"] = list(final_state.get("agent_trace", [])) + [
+                "[transport] MCP graph evidence unavailable; no synthetic graph evidence was added"
+            ]
+        logger.info("Completed investigation for case %s. Outcome: %s", case_data["case_id"], final_state.get("outcome"))
+        return final_state
+    finally:
+        mcp_client.close()

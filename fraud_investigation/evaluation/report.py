@@ -33,6 +33,15 @@ def generate_markdown_report(metrics: Dict[str, Any], results: List[Dict[str, An
     perf = metrics.get("performance", {})
     hhg007 = metrics.get("hhg007_regression", {})
 
+    additional_evidence_cases = [
+        result for result in results if result.get("additional_evidence_rounds", 0) > 0
+    ]
+    contradiction_cases = [
+        result for result in results if result.get("contradiction_evidence")
+    ]
+    writeback_cases = [result for result in results if result.get("writeback_observed")]
+    transport_failure_cases = [result for result in results if result.get("mcp_failures")]
+
     lines = [
         "# Phase 3 — Benchmark Evaluation & System Audit Report",
         "",
@@ -109,47 +118,58 @@ def generate_markdown_report(metrics: Dict[str, Any], results: List[Dict[str, An
         "",
         "---",
         "",
-        "## 8. DETERMINISTIC ROBUSTNESS & FAILURE TESTS",
+        "## 8. Accuracy And Error Analysis",
         "",
-        "- **Gemini Failure / Unavailable Fallback:** PASS",
-        "- **Citation Hallucination Stripping:** PASS",
-        "- **Policy Violation Prevention:** PASS",
-        "- **Evidence Loop Depth Bound (Max 1):** PASS",
-        "- **HHG-007 Contradiction Guardrail:** PASS",
+        "- No per-case ground-truth outcomes are present in `dataset/case_pack.csv`; a classification accuracy score is therefore not calculated.",
+        f"- Execution errors: {metrics.get('failed_cases', 0)}.",
+        f"- MCP transport failure events: {mcp.get('mcp_failures', 0)} across {len(transport_failure_cases)} cases.",
+        f"- Cases using deterministic reasoning fallback: {llm.get('fallback_cases', 0)}.",
+        f"- Policy violations observed: {pol.get('policy_violations', 0)}.",
         "",
         "---",
         "",
-        "## 9. DETAILED BENCHMARK CASE BREAKDOWN",
+        "## 9. NBA Before/After Matrix",
         "",
-        "| Case ID | Customer | Trigger | Hypotheses | Reasoning | Actions | Rounds | Duration (s) |",
-        "| :--- | :--- | :--- | :--- | :--- | :--- | :---: | :---: |",
+        "| Case ID | NBA Before | Additional Evidence Requested | NBA After |",
+        "| :--- | :--- | :--- | :--- |",
     ]
 
     for r in results:
-        case_id = r.get("case_id", "N/A")
-        cust = r.get("customer_id", "N/A")
-        trig = r.get("trigger_type", "N/A")
-        hyp = ", ".join(r.get("fraud_hypotheses", [])) or "none"
-        source = r.get("reasoning_source", "N/A")
-        actions = ", ".join(r.get("executed_actions", [])) or "none"
-        rounds = r.get("additional_evidence_rounds", 0)
-        dur = r.get("duration_seconds", 0.0)
-
-        lines.append(
-            f"| `{case_id}` | `{cust}` | `{trig}` | `{hyp}` | `{source}` | `{actions}` | {rounds} | {dur:.2f} |"
-        )
+        requested = r.get("additional_evidence_requested", [])
+        request_text = "; ".join(str(item.get("request_type", item)) for item in requested) or "none"
+        before = ", ".join(r.get("nba_before") or []) or "none"
+        after = ", ".join(r.get("nba_after") or []) or "none"
+        lines.append(f"| `{r.get('case_id', 'N/A')}` | {before} | {request_text} | {after} |")
 
     lines.extend([
         "",
         "---",
         "",
-        "## 10. SYSTEM LIMITATIONS & DATASET OBSERVATIONS",
+        "## 10. Additional Evidence And Contradictions",
         "",
-        "1. **Ground Truth Labels:** Ground truth outcomes for new benchmark cases are not pre-packaged in dataset CSV files.",
-        "2. **Identity Signal Sparsity:** Device fingerprinting signals exist in `identity.csv` for ~24.4% of total dataset transactions.",
-        "3. **Bounded Evidence Loop:** Bounded at 1 additional round by design to guarantee deterministic turn latency.",
-        "4. **Policy Boundary:** PolicyEngine rules (`hackathon-inferred-v1`) remain final authority, completely preventing forbidden action leakage.",
+        f"- Cases requiring additional evidence: {', '.join(result['case_id'] for result in additional_evidence_cases) or 'none'}.",
+        f"- Cases with contradiction evidence: {', '.join(result['case_id'] for result in contradiction_cases) or 'none'}.",
+        f"- Observed MCP writebacks through `tigergraph__add_nodes`: {len(writeback_cases)}/{len(results)}.",
+        "",
+        "---",
+        "",
+        "## 11. Per-Case Results",
+        "",
     ])
+
+    for r in results:
+        lines.extend([
+            f"### {r.get('case_id', 'N/A')}",
+            "",
+            f"- Trigger: `{r.get('trigger_type', '')}`; initial risk: `{r.get('initial_risk_score', 0.0)}`; transaction: `{r.get('flagged_txn_id', '')}`.",
+            f"- Evidence: {r.get('evidence_count', 0)} items; citations: {', '.join(r.get('evidence_citations', [])) or 'none'}; sufficient: `{r.get('evidence_sufficient', False)}`.",
+            f"- Hypotheses: {', '.join(r.get('fraud_hypotheses', [])) or 'none'}; confidence: `{r.get('confidence', 0.0)}`; uncertainty: `{r.get('uncertainty', 0.0)}`.",
+            f"- Outcome/pattern/exposure: `{r.get('outcome', 'unknown')}` / `{r.get('pattern', 'unknown')}` / `${r.get('exposure_usd', 0.0):.2f}`.",
+            f"- SAR required: `{r.get('sar_requirement')}`; executed actions: {', '.join(r.get('executed_actions', [])) or 'none'}.",
+            f"- Reasoning: `{r.get('reasoning_source', 'unknown')}`; MCP transport: `{r.get('mcp_transport', 'unknown')}`; writeback observed: `{r.get('writeback_observed', False)}`.",
+            f"- MCP failures: {json.dumps(r.get('mcp_failures', []))}; error: {r.get('error') or 'none'}.",
+            "",
+        ])
 
     return "\n".join(lines)
 

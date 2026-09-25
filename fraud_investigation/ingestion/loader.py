@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Set
 logger = logging.getLogger(__name__)
 
 # Graph name — must match fraud_schema.gsql
-GRAPH_NAME = "FraudInvestigation"
+GRAPH_NAME = "HHGOA_Fraud"
 
 _SCHEMA_FILE = Path(__file__).parent.parent / "schema" / "fraud_schema.gsql"
 _QUERIES_DIR = Path(__file__).parent.parent / "queries"
@@ -52,19 +52,17 @@ def apply_schema(conn: Any, reset: bool = False) -> None:
         except Exception as e:
             logger.warning("Drop graph failed (may not exist): %s", e)
 
-    # Check if graph already exists
+    # Check if graph schema already exists
     try:
-        existing_graphs = conn.getGraphs()
+        existing_types = conn.getVertexTypes()
+        if existing_types:
+            logger.info(
+                "Graph %s already exists (%d vertex types found) — skipping schema creation. "
+                "Use reset=True to recreate.", GRAPH_NAME, len(existing_types),
+            )
+            return
     except Exception as e:
-        logger.error("Could not list graphs: %s", e)
-        raise
-
-    if GRAPH_NAME in existing_graphs:
-        logger.info(
-            "Graph %s already exists — skipping schema creation. "
-            "Use reset=True to recreate.", GRAPH_NAME,
-        )
-        return
+        logger.warning("Could not check vertex types: %s", e)
 
     # Apply schema DDL
     gsql_text = _SCHEMA_FILE.read_text(encoding="utf-8")
@@ -123,7 +121,7 @@ def _upsert_edges(
     src_type: str,
     edge_type: str,
     tgt_type: str,
-    edges: List[tuple],   # [(src_id, {attrs}, tgt_id), ...]
+    edges: List[tuple],   # [(src_id, tgt_id, {attrs}), ...]
     batch_size: int = 500,
 ) -> int:
     """
@@ -219,16 +217,21 @@ def load_all(
     card_vertices_from_cases = []   # cards seen in closed cases
     case_customer_edges = []
     case_card_edges = []
+    closed_case_txns = []           # (case_id, txn_ids_list) for CASE_INCLUDES_TXN edges
 
     for rec in extract_closed_cases(closed_cases_path):
         cid = rec["case_id"]
-        case_vertices.append((cid, {
+        attrs = {
             k: v for k, v in rec.items()
             if k not in {"case_id", "_txn_ids_list", "_connected_cards_list"}
-        }))
-        case_customer_edges.append((cid, {}, rec["customer_id"]))
+            and not (k in {"closed_at", "opened_at"} and v == "")
+        }
+        case_vertices.append((cid, attrs))
+        case_customer_edges.append((rec["customer_id"], cid, {}))
+        if rec["_txn_ids_list"]:
+            closed_case_txns.append((cid, rec["_txn_ids_list"]))
         if rec["card_id"]:
-            case_card_edges.append((cid, {}, rec["card_id"]))
+            case_card_edges.append((cid, rec["card_id"], {}))
             # Register card vertex
             card_vertices_from_cases.append((rec["card_id"], {
                 "card_id":      rec["card_id"],
@@ -266,8 +269,13 @@ def load_all(
     inv_customer_edges = []
     for rec in extract_case_pack(case_pack_path):
         case_id = rec["case_id"]
-        inv_vertices.append((case_id, {k: v for k, v in rec.items() if k != "case_id"}))
-        inv_customer_edges.append((case_id, {}, rec["customer_id"]))
+        attrs = {
+            k: v for k, v in rec.items()
+            if k != "case_id"
+            and not (k in {"closed_at", "opened_at"} and v == "")
+        }
+        inv_vertices.append((case_id, attrs))
+        inv_customer_edges.append((case_id, rec["customer_id"], {}))
 
     conn.upsertVertices("InvestigationCase", inv_vertices)
     stats["investigation_cases"] = len(inv_vertices)
@@ -279,7 +287,9 @@ def load_all(
     logger.info("Step 5/7 — Loading Transaction vertices (scoped to %d customers)", len(customer_ids))
     txn_vertices = []
     txn_customer_edges = []      # Customer → Transaction
+    made_with_card_edges = []    # Transaction → Card
     loaded_txn_ids: Set[str] = set()
+    total_made_with_card = 0
 
     # card1_token → card_id mapping (built during transaction scan)
     # card_id format: {customer_id}-K{n} — we derive this by grouping card1 values
@@ -325,21 +335,31 @@ def load_all(
             "transaction_dt": rec["transaction_dt"],
         }
         txn_vertices.append((txn_id, txn_attrs))
-        txn_customer_edges.append((cid, {}, txn_id))
+        txn_customer_edges.append((cid, txn_id, {}))
+        if card_id:
+            made_with_card_edges.append((txn_id, card_id, {}))
 
         if len(txn_vertices) >= batch_size:
-            conn.upsertVertices("Transaction", txn_vertices)
-            conn.upsertEdges("Customer", "HAS_TRANSACTION", "Transaction", txn_customer_edges)
+            conn.upsertVertices("Transaction", list(txn_vertices))
+            conn.upsertEdges("Customer", "HAS_TRANSACTION", "Transaction", list(txn_customer_edges))
+            if made_with_card_edges:
+                conn.upsertEdges("Transaction", "MADE_WITH_CARD", "Card", list(made_with_card_edges))
+                total_made_with_card += len(made_with_card_edges)
             txn_vertices.clear()
             txn_customer_edges.clear()
+            made_with_card_edges.clear()
 
     # Flush remaining
     if txn_vertices:
-        conn.upsertVertices("Transaction", txn_vertices)
-        conn.upsertEdges("Customer", "HAS_TRANSACTION", "Transaction", txn_customer_edges)
+        conn.upsertVertices("Transaction", list(txn_vertices))
+        conn.upsertEdges("Customer", "HAS_TRANSACTION", "Transaction", list(txn_customer_edges))
+        if made_with_card_edges:
+            conn.upsertEdges("Transaction", "MADE_WITH_CARD", "Card", list(made_with_card_edges))
+            total_made_with_card += len(made_with_card_edges)
 
     stats["transactions"] = len(loaded_txn_ids)
-    logger.info("Upserted %d Transaction vertices", len(loaded_txn_ids))
+    stats["made_with_card_edges"] = total_made_with_card
+    logger.info("Upserted %d Transaction vertices, %d MADE_WITH_CARD edges", len(loaded_txn_ids), total_made_with_card)
 
     # Upsert enriched Card vertices (with network/type from transactions)
     enriched_cards = []
@@ -374,7 +394,7 @@ def load_all(
                 "device_info_normalized": rec["device_info_normalized"],
             }))
             seen_device_ids.add(did)
-        has_identity_edges.append((txn_id, {}, did))
+        has_identity_edges.append((txn_id, did, {}))
 
     if device_vertices:
         conn.upsertVertices("DeviceProfile", device_vertices)
@@ -405,7 +425,7 @@ def load_all(
     owns_card_edges = []
     for cid, token_map in customer_card_tokens.items():
         for token, card_id in token_map.items():
-            owns_card_edges.append((cid, {}, card_id))
+            owns_card_edges.append((cid, card_id, {}))
     if owns_card_edges:
         conn.upsertEdges("Customer", "OWNS_CARD", "Card", owns_card_edges)
     stats["owns_card_edges"] = len(owns_card_edges)
@@ -420,12 +440,26 @@ def load_all(
     for rec in extract_case_pack(case_pack_path):
         ftxn = rec["flagged_txn_id"]
         if ftxn in loaded_txn_ids:
-            inv_txn_edges.append((rec["case_id"], {}, ftxn))
+            inv_txn_edges.append((rec["case_id"], ftxn, {}))
     if inv_txn_edges:
         conn.upsertEdges(
             "InvestigationCase", "INVESTIGATION_FLAGS_TXN", "Transaction", inv_txn_edges
         )
     stats["investigation_flags_txn_edges"] = len(inv_txn_edges)
+
+    # ClosedCase → Transaction (CASE_INCLUDES_TXN) — benchmark-scoped transactions only
+    case_includes_txn_edges = []
+    seen_case_txn: Set[tuple] = set()
+    for case_id, txn_list in closed_case_txns:
+        for tid in txn_list:
+            if tid in loaded_txn_ids:
+                pair = (case_id, tid)
+                if pair not in seen_case_txn:
+                    seen_case_txn.add(pair)
+                    case_includes_txn_edges.append((case_id, tid, {}))
+    if case_includes_txn_edges:
+        conn.upsertEdges("ClosedCase", "CASE_INCLUDES_TXN", "Transaction", case_includes_txn_edges)
+    stats["case_includes_txn_edges"] = len(case_includes_txn_edges)
 
     elapsed = time.time() - t0
     stats["elapsed_seconds"] = round(elapsed, 1)
