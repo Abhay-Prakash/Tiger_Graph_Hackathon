@@ -1,0 +1,218 @@
+{
+  "case_id": "HHG-014",
+  "case": {
+    "trigger_type": "analyst_request",
+    "trigger_text": "Analyst request: several cards this month show purchases from the same unusual device profile. Review transaction 3478561 on card C13487-K1 and look for related activity.",
+    "opened_at": "2016-11-22 20:11:00",
+    "customer_id": "C13487",
+    "card_id": "C13487-K1",
+    "flagged_txn_id": "3478561",
+    "initial_risk_score": 0.0
+  },
+  "investigation": {
+    "risk_level": "low",
+    "confidence": 0.8,
+    "uncertainty": 0.2,
+    "evidence_sufficient": true,
+    "fraud_hypotheses": [
+      "none"
+    ],
+    "missing_evidence": []
+  },
+  "evidence": [
+    {
+      "source": "benchmark_case",
+      "source_record_id": "HHG-014",
+      "evidence_type": "model_score",
+      "description": "Case HHG-014 opened for trigger 'analyst_request': Analyst request: several cards this month show purchases from the same unusual device profile. Review transaction 3478561 on card C13487-K1 and look for related activity.",
+      "observed_value": {
+        "trigger_type": "analyst_request",
+        "initial_risk_score": 0.0
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:07:35.507865+00:00",
+      "provenance": "case_pack.csv:case_id=HHG-014",
+      "evidence_id": "EVD-090E6D8FA75E"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3478561",
+      "evidence_type": "model_score",
+      "description": "Transaction 3478561 pre-computed ML risk score is 0.05.",
+      "observed_value": {
+        "risk_score": 0.05,
+        "amount": 74.96,
+        "channel": "online"
+      },
+      "supports": "none",
+      "contradicts": "high_risk_fraud",
+      "confidence": 0.1,
+      "timestamp": "2026-09-25T08:07:35.807984+00:00",
+      "provenance": "transactions.csv:risk_score (txn=3478561)",
+      "evidence_id": "EVD-C96F1CB0BE0A"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3478561",
+      "evidence_type": "transaction_context",
+      "description": "Flagged transaction of $74.96 via online channel at region code 191.",
+      "observed_value": {
+        "amount": 74.96,
+        "channel": "online",
+        "addr1": 191
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:07:35.807984+00:00",
+      "provenance": "transactions.csv:TransactionAmt,channel,addr1 (txn=3478561)",
+      "evidence_id": "EVD-D9F8280837E3"
+    },
+    {
+      "source": "query_detect_region_anomaly",
+      "source_record_id": "3478561",
+      "evidence_type": "region_signal",
+      "description": "Transaction region 191 matches customer primary home region 191.",
+      "observed_value": {
+        "flagged_addr1": 191,
+        "home_region": 191
+      },
+      "supports": "none",
+      "contradicts": "out_of_region_use",
+      "confidence": 0.8,
+      "timestamp": "2026-09-25T08:07:35.871509+00:00",
+      "provenance": "transactions.csv:addr1 (txn=3478561)",
+      "evidence_id": "EVD-0F9545C1C6DD"
+    },
+    {
+      "source": "query_detect_shared_device",
+      "source_record_id": "3478561",
+      "evidence_type": "device_signal",
+      "description": "Device record exists ('SM-G935F Build/NRD90M'), no multi-customer device sharing detected.",
+      "observed_value": {
+        "device_info": "SM-G935F Build/NRD90M"
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.7,
+      "timestamp": "2026-09-25T08:07:35.936514+00:00",
+      "provenance": "identity.csv:DeviceInfo (txn=3478561)",
+      "evidence_id": "EVD-6028C4B1B5A1"
+    },
+    {
+      "source": "query_detect_velocity_burst",
+      "source_record_id": "3478561",
+      "evidence_type": "velocity_signal",
+      "description": "Same-day card activity detected (D1=0.0) with 2 transactions.",
+      "observed_value": {
+        "txn_count": 2,
+        "has_same_day_d1": true
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.6,
+      "timestamp": "2026-09-25T08:07:35.996042+00:00",
+      "provenance": "transactions.csv:D1 (txn=3478561)",
+      "evidence_id": "EVD-4EFF1E64F20F"
+    },
+    {
+      "source": "query_get_customer_case_history",
+      "source_record_id": "C13487",
+      "evidence_type": "prior_case",
+      "description": "Customer C13487 has no prior historical closed cases.",
+      "observed_value": {
+        "total_cases": 0
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:07:36.051048+00:00",
+      "provenance": "closed_cases_history.csv:customer_id=C13487",
+      "evidence_id": "EVD-7F6857A1ACC3"
+    }
+  ],
+  "findings": {
+    "outcome": "cleared",
+    "pattern": "none",
+    "summary": "FINDING: Case HHG-014 resolved as cleared (Pattern: none).\nEVIDENCE:\n  - [EVD-090E6D8FA75E] (model_score) Case HHG-014 opened for trigger 'analyst_request': Analyst request: several cards this month show purchases from the same unusual device profile. Review transaction 3478561 on card C13487-K1 and look for related activity. (Provenance: case_pack.csv:case_id=HHG-014)\n  - [EVD-C96F1CB0BE0A] (model_score) Transaction 3478561 pre-computed ML risk score is 0.05. (Provenance: transactions.csv:risk_score (txn=3478561))\n  - [EVD-D9F8280837E3] (transaction_context) Flagged transaction of $74.96 via online channel at region code 191. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3478561))\n  - [EVD-0F9545C1C6DD] (region_signal) Transaction region 191 matches customer primary home region 191. (Provenance: transactions.csv:addr1 (txn=3478561))\n  - [EVD-6028C4B1B5A1] (device_signal) Device record exists ('SM-G935F Build/NRD90M'), no multi-customer device sharing detected. (Provenance: identity.csv:DeviceInfo (txn=3478561))\n  - [EVD-4EFF1E64F20F] (velocity_signal) Same-day card activity detected (D1=0.0) with 2 transactions. (Provenance: transactions.csv:D1 (txn=3478561))\n  - [EVD-7F6857A1ACC3] (prior_case) Customer C13487 has no prior historical closed cases. (Provenance: closed_cases_history.csv:customer_id=C13487)\nIMPLICATION: Flagged transaction 3478561 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, VERIFY_WITH_CUSTOMER, CLOSE_NO_FRAUD."
+  },
+  "decisions": {
+    "recommended_actions": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER",
+      "CLOSE_NO_FRAUD"
+    ],
+    "approval_route": "auto",
+    "policy_decision": {
+      "required_actions": [
+        "CREATE_CASE",
+        "VERIFY_WITH_CUSTOMER",
+        "CLOSE_NO_FRAUD"
+      ],
+      "permitted_actions": [],
+      "forbidden_actions": [
+        "BLOCK_CARD",
+        "FILE_REPORT"
+      ],
+      "sar_required": false,
+      "approval_route": "auto",
+      "policy_rules_applied": [
+        "POL-001",
+        "POL-004"
+      ],
+      "reasoning": "POL-001: trigger_type='analyst_request' \u2192 CREATE_CASE required\nPOL-004: cleared \u2192 VERIFY_WITH_CUSTOMER + CLOSE_NO_FRAUD; BLOCK_CARD and FILE_REPORT forbidden"
+    }
+  },
+  "additional_evidence": {
+    "rounds": 0,
+    "requests": [],
+    "responses": [],
+    "nba_before": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER",
+      "CLOSE_NO_FRAUD"
+    ],
+    "nba_after": null
+  },
+  "execution": {
+    "executed_actions": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER",
+      "CLOSE_NO_FRAUD"
+    ],
+    "sar_required": false
+  },
+  "memory": {
+    "written_to_graph": true,
+    "graph_record_type": "InvestigationCase",
+    "mcp_transport": "stdio_mcp",
+    "writeback_tool_calls": [
+      {
+        "event": "tools/call",
+        "transport": "stdio_mcp",
+        "server": "tigergraph-mcp",
+        "tool": "tigergraph__add_nodes"
+      }
+    ],
+    "transport_failures": []
+  },
+  "explanation": {
+    "text": "FINDING: Case HHG-014 resolved as cleared (Pattern: none).\nEVIDENCE:\n  - [EVD-090E6D8FA75E] (model_score) Case HHG-014 opened for trigger 'analyst_request': Analyst request: several cards this month show purchases from the same unusual device profile. Review transaction 3478561 on card C13487-K1 and look for related activity. (Provenance: case_pack.csv:case_id=HHG-014)\n  - [EVD-C96F1CB0BE0A] (model_score) Transaction 3478561 pre-computed ML risk score is 0.05. (Provenance: transactions.csv:risk_score (txn=3478561))\n  - [EVD-D9F8280837E3] (transaction_context) Flagged transaction of $74.96 via online channel at region code 191. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3478561))\n  - [EVD-0F9545C1C6DD] (region_signal) Transaction region 191 matches customer primary home region 191. (Provenance: transactions.csv:addr1 (txn=3478561))\n  - [EVD-6028C4B1B5A1] (device_signal) Device record exists ('SM-G935F Build/NRD90M'), no multi-customer device sharing detected. (Provenance: identity.csv:DeviceInfo (txn=3478561))\n  - [EVD-4EFF1E64F20F] (velocity_signal) Same-day card activity detected (D1=0.0) with 2 transactions. (Provenance: transactions.csv:D1 (txn=3478561))\n  - [EVD-7F6857A1ACC3] (prior_case) Customer C13487 has no prior historical closed cases. (Provenance: closed_cases_history.csv:customer_id=C13487)\nIMPLICATION: Flagged transaction 3478561 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, VERIFY_WITH_CUSTOMER, CLOSE_NO_FRAUD.",
+    "citations": [
+      "EVD-090E6D8FA75E",
+      "EVD-C96F1CB0BE0A",
+      "EVD-D9F8280837E3",
+      "EVD-0F9545C1C6DD",
+      "EVD-6028C4B1B5A1",
+      "EVD-4EFF1E64F20F",
+      "EVD-7F6857A1ACC3"
+    ]
+  },
+  "metadata": {
+    "reasoning_source": "deterministic_fallback",
+    "citation_validity": true,
+    "source_artifact": "docs/PHASE3_EVALUATION_RESULTS.json"
+  }
+}

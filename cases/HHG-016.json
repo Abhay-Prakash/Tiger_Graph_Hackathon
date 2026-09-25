@@ -1,0 +1,213 @@
+{
+  "case_id": "HHG-016",
+  "case": {
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820.",
+    "opened_at": "2016-12-12 01:39:08",
+    "customer_id": "C09988",
+    "card_id": "C09988-K1",
+    "flagged_txn_id": "3534820",
+    "initial_risk_score": 0.0
+  },
+  "investigation": {
+    "risk_level": "high",
+    "confidence": 0.9,
+    "uncertainty": 0.1,
+    "evidence_sufficient": true,
+    "fraud_hypotheses": [
+      "card_not_present_fraud"
+    ],
+    "missing_evidence": []
+  },
+  "evidence": [
+    {
+      "source": "benchmark_case",
+      "source_record_id": "HHG-016",
+      "evidence_type": "customer_report",
+      "description": "Case HHG-016 opened for trigger 'customer_report': Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820.",
+      "observed_value": {
+        "trigger_type": "customer_report",
+        "initial_risk_score": 0.0
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:08:16.829904+00:00",
+      "provenance": "case_pack.csv:case_id=HHG-016",
+      "evidence_id": "EVD-F6D4A0556746"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3534820",
+      "evidence_type": "model_score",
+      "description": "Transaction 3534820 pre-computed ML risk score is 0.37.",
+      "observed_value": {
+        "risk_score": 0.37,
+        "amount": 59.67,
+        "channel": "online"
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.37,
+      "timestamp": "2026-09-25T08:08:17.135159+00:00",
+      "provenance": "transactions.csv:risk_score (txn=3534820)",
+      "evidence_id": "EVD-625B0FC18DE7"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3534820",
+      "evidence_type": "transaction_context",
+      "description": "Flagged transaction of $59.67 via online channel at region code -1.",
+      "observed_value": {
+        "amount": 59.67,
+        "channel": "online",
+        "addr1": -1
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:08:17.135159+00:00",
+      "provenance": "transactions.csv:TransactionAmt,channel,addr1 (txn=3534820)",
+      "evidence_id": "EVD-0CF9D9701F78"
+    },
+    {
+      "source": "query_detect_region_anomaly",
+      "source_record_id": "3534820",
+      "evidence_type": "region_signal",
+      "description": "Transaction region -1 matches customer primary home region 382.",
+      "observed_value": {
+        "flagged_addr1": -1,
+        "home_region": 382
+      },
+      "supports": "none",
+      "contradicts": "out_of_region_use",
+      "confidence": 0.8,
+      "timestamp": "2026-09-25T08:08:17.200704+00:00",
+      "provenance": "transactions.csv:addr1 (txn=3534820)",
+      "evidence_id": "EVD-A634C1612BB1"
+    },
+    {
+      "source": "query_detect_shared_device",
+      "source_record_id": "3534820",
+      "evidence_type": "device_signal",
+      "description": "No identity/device record available for transaction 3534820.",
+      "observed_value": {
+        "has_device": false
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.5,
+      "timestamp": "2026-09-25T08:08:17.262717+00:00",
+      "provenance": "identity.csv (txn=3534820)",
+      "evidence_id": "EVD-AFAC01469A07"
+    },
+    {
+      "source": "query_detect_velocity_burst",
+      "source_record_id": "3534820",
+      "evidence_type": "velocity_signal",
+      "description": "Same-day card activity detected (D1=0.0) with 1 transactions.",
+      "observed_value": {
+        "txn_count": 1,
+        "has_same_day_d1": true
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.6,
+      "timestamp": "2026-09-25T08:08:17.328988+00:00",
+      "provenance": "transactions.csv:D1 (txn=3534820)",
+      "evidence_id": "EVD-A96F3B8312A3"
+    },
+    {
+      "source": "query_get_customer_case_history",
+      "source_record_id": "C09988",
+      "evidence_type": "prior_case",
+      "description": "Customer C09988 has no prior historical closed cases.",
+      "observed_value": {
+        "total_cases": 0
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:08:17.391999+00:00",
+      "provenance": "closed_cases_history.csv:customer_id=C09988",
+      "evidence_id": "EVD-A76D2528C172"
+    }
+  ],
+  "findings": {
+    "outcome": "confirmed_fraud",
+    "pattern": "card_not_present_fraud",
+    "summary": "FINDING: Case HHG-016 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-F6D4A0556746] (customer_report) Case HHG-016 opened for trigger 'customer_report': Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820. (Provenance: case_pack.csv:case_id=HHG-016)\n  - [EVD-625B0FC18DE7] (model_score) Transaction 3534820 pre-computed ML risk score is 0.37. (Provenance: transactions.csv:risk_score (txn=3534820))\n  - [EVD-0CF9D9701F78] (transaction_context) Flagged transaction of $59.67 via online channel at region code -1. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3534820))\n  - [EVD-A634C1612BB1] (region_signal) Transaction region -1 matches customer primary home region 382. (Provenance: transactions.csv:addr1 (txn=3534820))\n  - [EVD-AFAC01469A07] (device_signal) No identity/device record available for transaction 3534820. (Provenance: identity.csv (txn=3534820))\n  - [EVD-A96F3B8312A3] (velocity_signal) Same-day card activity detected (D1=0.0) with 1 transactions. (Provenance: transactions.csv:D1 (txn=3534820))\n  - [EVD-A76D2528C172] (prior_case) Customer C09988 has no prior historical closed cases. (Provenance: closed_cases_history.csv:customer_id=C09988)\nIMPLICATION: Flagged transaction 3534820 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD."
+  },
+  "decisions": {
+    "recommended_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "approval_route": "auto",
+    "policy_decision": {
+      "required_actions": [
+        "CREATE_CASE",
+        "BLOCK_CARD"
+      ],
+      "permitted_actions": [],
+      "forbidden_actions": [
+        "CLOSE_NO_FRAUD"
+      ],
+      "sar_required": false,
+      "approval_route": "auto",
+      "policy_rules_applied": [
+        "POL-001",
+        "POL-002"
+      ],
+      "reasoning": "POL-001: trigger_type='customer_report' \u2192 CREATE_CASE required\nPOL-002: confirmed_fraud \u2192 BLOCK_CARD mandatory\nPOL-003: exposure_usd=0.00 < 1000 and pattern='card_not_present_fraud' \u2192 SAR not required"
+    }
+  },
+  "additional_evidence": {
+    "rounds": 0,
+    "requests": [],
+    "responses": [],
+    "nba_before": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "nba_after": null
+  },
+  "execution": {
+    "executed_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "sar_required": false
+  },
+  "memory": {
+    "written_to_graph": true,
+    "graph_record_type": "InvestigationCase",
+    "mcp_transport": "stdio_mcp",
+    "writeback_tool_calls": [
+      {
+        "event": "tools/call",
+        "transport": "stdio_mcp",
+        "server": "tigergraph-mcp",
+        "tool": "tigergraph__add_nodes"
+      }
+    ],
+    "transport_failures": []
+  },
+  "explanation": {
+    "text": "FINDING: Case HHG-016 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-F6D4A0556746] (customer_report) Case HHG-016 opened for trigger 'customer_report': Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820. (Provenance: case_pack.csv:case_id=HHG-016)\n  - [EVD-625B0FC18DE7] (model_score) Transaction 3534820 pre-computed ML risk score is 0.37. (Provenance: transactions.csv:risk_score (txn=3534820))\n  - [EVD-0CF9D9701F78] (transaction_context) Flagged transaction of $59.67 via online channel at region code -1. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3534820))\n  - [EVD-A634C1612BB1] (region_signal) Transaction region -1 matches customer primary home region 382. (Provenance: transactions.csv:addr1 (txn=3534820))\n  - [EVD-AFAC01469A07] (device_signal) No identity/device record available for transaction 3534820. (Provenance: identity.csv (txn=3534820))\n  - [EVD-A96F3B8312A3] (velocity_signal) Same-day card activity detected (D1=0.0) with 1 transactions. (Provenance: transactions.csv:D1 (txn=3534820))\n  - [EVD-A76D2528C172] (prior_case) Customer C09988 has no prior historical closed cases. (Provenance: closed_cases_history.csv:customer_id=C09988)\nIMPLICATION: Flagged transaction 3534820 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD.",
+    "citations": [
+      "EVD-F6D4A0556746",
+      "EVD-625B0FC18DE7",
+      "EVD-0CF9D9701F78",
+      "EVD-A634C1612BB1",
+      "EVD-AFAC01469A07",
+      "EVD-A96F3B8312A3",
+      "EVD-A76D2528C172"
+    ]
+  },
+  "metadata": {
+    "reasoning_source": "deterministic_fallback",
+    "citation_validity": true,
+    "source_artifact": "docs/PHASE3_EVALUATION_RESULTS.json"
+  }
+}

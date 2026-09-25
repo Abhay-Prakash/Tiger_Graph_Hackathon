@@ -1,0 +1,222 @@
+{
+  "case_id": "HHG-018",
+  "case": {
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361.",
+    "opened_at": "2016-11-27 14:41:26",
+    "customer_id": "C02354",
+    "card_id": "C02354-K2",
+    "flagged_txn_id": "3491361",
+    "initial_risk_score": 0.0
+  },
+  "investigation": {
+    "risk_level": "high",
+    "confidence": 0.9,
+    "uncertainty": 0.1,
+    "evidence_sufficient": true,
+    "fraud_hypotheses": [
+      "card_not_present_fraud"
+    ],
+    "missing_evidence": []
+  },
+  "evidence": [
+    {
+      "source": "benchmark_case",
+      "source_record_id": "HHG-018",
+      "evidence_type": "customer_report",
+      "description": "Case HHG-018 opened for trigger 'customer_report': Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361.",
+      "observed_value": {
+        "trigger_type": "customer_report",
+        "initial_risk_score": 0.0
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:09:00.546815+00:00",
+      "provenance": "case_pack.csv:case_id=HHG-018",
+      "evidence_id": "EVD-97888CA36007"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3491361",
+      "evidence_type": "model_score",
+      "description": "Transaction 3491361 pre-computed ML risk score is 0.48.",
+      "observed_value": {
+        "risk_score": 0.48,
+        "amount": 39.08,
+        "channel": "in_person"
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.48,
+      "timestamp": "2026-09-25T08:09:02.187891+00:00",
+      "provenance": "transactions.csv:risk_score (txn=3491361)",
+      "evidence_id": "EVD-B64D0A70C26D"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3491361",
+      "evidence_type": "transaction_context",
+      "description": "Flagged transaction of $39.08 via in_person channel at region code 126.",
+      "observed_value": {
+        "amount": 39.08,
+        "channel": "in_person",
+        "addr1": 126
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:09:02.187891+00:00",
+      "provenance": "transactions.csv:TransactionAmt,channel,addr1 (txn=3491361)",
+      "evidence_id": "EVD-A230988D3BD8"
+    },
+    {
+      "source": "query_detect_region_anomaly",
+      "source_record_id": "3491361",
+      "evidence_type": "region_signal",
+      "description": "Out-of-region activity detected: flagged region 126 differs from customer primary home region 325.",
+      "observed_value": {
+        "flagged_addr1": 126,
+        "home_region": 325
+      },
+      "supports": "out_of_region_use",
+      "contradicts": "none",
+      "confidence": 0.85,
+      "timestamp": "2026-09-25T08:09:02.258466+00:00",
+      "provenance": "transactions.csv:addr1 (txn=3491361)",
+      "evidence_id": "EVD-244AC02E507E"
+    },
+    {
+      "source": "query_detect_shared_device",
+      "source_record_id": "3491361",
+      "evidence_type": "device_signal",
+      "description": "No identity/device record available for transaction 3491361.",
+      "observed_value": {
+        "has_device": false
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.5,
+      "timestamp": "2026-09-25T08:09:02.314614+00:00",
+      "provenance": "identity.csv (txn=3491361)",
+      "evidence_id": "EVD-D9DC27B91199"
+    },
+    {
+      "source": "query_detect_velocity_burst",
+      "source_record_id": "3491361",
+      "evidence_type": "velocity_signal",
+      "description": "High velocity burst: 42 transactions totaling $6004.31 within 24h window.",
+      "observed_value": {
+        "txn_count": 42,
+        "total_amount": 6004.309,
+        "has_same_day_d1": true
+      },
+      "supports": "card_testing",
+      "contradicts": "none",
+      "confidence": 0.85,
+      "timestamp": "2026-09-25T08:09:02.381136+00:00",
+      "provenance": "transactions.csv:ts,C2,D1 (txn=3491361)",
+      "evidence_id": "EVD-228E56B01614"
+    },
+    {
+      "source": "query_get_customer_case_history",
+      "source_record_id": "C02354",
+      "evidence_type": "prior_case",
+      "description": "Customer C02354 has 20 prior closed cases (19 confirmed fraud, total exposure $19262.22).",
+      "observed_value": {
+        "total_cases": 20,
+        "confirmed_fraud_count": 19,
+        "total_exposure_usd": 19262.22,
+        "patterns": [
+          "account_takeover",
+          "out_of_region_use",
+          "none",
+          "card_not_present_fraud"
+        ]
+      },
+      "supports": "account_takeover",
+      "contradicts": "none",
+      "confidence": 0.95,
+      "timestamp": "2026-09-25T08:09:02.442540+00:00",
+      "provenance": "closed_cases_history.csv:customer_id=C02354",
+      "evidence_id": "EVD-C9EDE31433BD"
+    }
+  ],
+  "findings": {
+    "outcome": "confirmed_fraud",
+    "pattern": "card_not_present_fraud",
+    "summary": "FINDING: Case HHG-018 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-97888CA36007] (customer_report) Case HHG-018 opened for trigger 'customer_report': Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361. (Provenance: case_pack.csv:case_id=HHG-018)\n  - [EVD-B64D0A70C26D] (model_score) Transaction 3491361 pre-computed ML risk score is 0.48. (Provenance: transactions.csv:risk_score (txn=3491361))\n  - [EVD-A230988D3BD8] (transaction_context) Flagged transaction of $39.08 via in_person channel at region code 126. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3491361))\n  - [EVD-244AC02E507E] (region_signal) Out-of-region activity detected: flagged region 126 differs from customer primary home region 325. (Provenance: transactions.csv:addr1 (txn=3491361))\n  - [EVD-D9DC27B91199] (device_signal) No identity/device record available for transaction 3491361. (Provenance: identity.csv (txn=3491361))\n  - [EVD-228E56B01614] (velocity_signal) High velocity burst: 42 transactions totaling $6004.31 within 24h window. (Provenance: transactions.csv:ts,C2,D1 (txn=3491361))\n  - [EVD-C9EDE31433BD] (prior_case) Customer C02354 has 20 prior closed cases (19 confirmed fraud, total exposure $19262.22). (Provenance: closed_cases_history.csv:customer_id=C02354)\nIMPLICATION: Flagged transaction 3491361 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD."
+  },
+  "decisions": {
+    "recommended_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "approval_route": "auto",
+    "policy_decision": {
+      "required_actions": [
+        "CREATE_CASE",
+        "BLOCK_CARD"
+      ],
+      "permitted_actions": [],
+      "forbidden_actions": [
+        "CLOSE_NO_FRAUD"
+      ],
+      "sar_required": false,
+      "approval_route": "auto",
+      "policy_rules_applied": [
+        "POL-001",
+        "POL-002"
+      ],
+      "reasoning": "POL-001: trigger_type='customer_report' \u2192 CREATE_CASE required\nPOL-002: confirmed_fraud \u2192 BLOCK_CARD mandatory\nPOL-003: exposure_usd=0.00 < 1000 and pattern='card_not_present_fraud' \u2192 SAR not required"
+    }
+  },
+  "additional_evidence": {
+    "rounds": 0,
+    "requests": [],
+    "responses": [],
+    "nba_before": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "nba_after": null
+  },
+  "execution": {
+    "executed_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "sar_required": false
+  },
+  "memory": {
+    "written_to_graph": true,
+    "graph_record_type": "InvestigationCase",
+    "mcp_transport": "stdio_mcp",
+    "writeback_tool_calls": [
+      {
+        "event": "tools/call",
+        "transport": "stdio_mcp",
+        "server": "tigergraph-mcp",
+        "tool": "tigergraph__add_nodes"
+      }
+    ],
+    "transport_failures": []
+  },
+  "explanation": {
+    "text": "FINDING: Case HHG-018 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-97888CA36007] (customer_report) Case HHG-018 opened for trigger 'customer_report': Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361. (Provenance: case_pack.csv:case_id=HHG-018)\n  - [EVD-B64D0A70C26D] (model_score) Transaction 3491361 pre-computed ML risk score is 0.48. (Provenance: transactions.csv:risk_score (txn=3491361))\n  - [EVD-A230988D3BD8] (transaction_context) Flagged transaction of $39.08 via in_person channel at region code 126. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3491361))\n  - [EVD-244AC02E507E] (region_signal) Out-of-region activity detected: flagged region 126 differs from customer primary home region 325. (Provenance: transactions.csv:addr1 (txn=3491361))\n  - [EVD-D9DC27B91199] (device_signal) No identity/device record available for transaction 3491361. (Provenance: identity.csv (txn=3491361))\n  - [EVD-228E56B01614] (velocity_signal) High velocity burst: 42 transactions totaling $6004.31 within 24h window. (Provenance: transactions.csv:ts,C2,D1 (txn=3491361))\n  - [EVD-C9EDE31433BD] (prior_case) Customer C02354 has 20 prior closed cases (19 confirmed fraud, total exposure $19262.22). (Provenance: closed_cases_history.csv:customer_id=C02354)\nIMPLICATION: Flagged transaction 3491361 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD.",
+    "citations": [
+      "EVD-97888CA36007",
+      "EVD-B64D0A70C26D",
+      "EVD-A230988D3BD8",
+      "EVD-244AC02E507E",
+      "EVD-D9DC27B91199",
+      "EVD-228E56B01614",
+      "EVD-C9EDE31433BD"
+    ]
+  },
+  "metadata": {
+    "reasoning_source": "deterministic_fallback",
+    "citation_validity": true,
+    "source_artifact": "docs/PHASE3_EVALUATION_RESULTS.json"
+  }
+}

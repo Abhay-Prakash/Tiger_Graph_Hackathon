@@ -1,0 +1,218 @@
+{
+  "case_id": "HHG-010",
+  "case": {
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3506725 ($1,000.03, online) at 0.90. Review and decide.",
+    "opened_at": "2016-12-02 18:18:27",
+    "customer_id": "C10434",
+    "card_id": "C10434-K1",
+    "flagged_txn_id": "3506725",
+    "initial_risk_score": 0.9
+  },
+  "investigation": {
+    "risk_level": "high",
+    "confidence": 0.85,
+    "uncertainty": 0.15,
+    "evidence_sufficient": true,
+    "fraud_hypotheses": [
+      "card_not_present_fraud"
+    ],
+    "missing_evidence": []
+  },
+  "evidence": [
+    {
+      "source": "benchmark_case",
+      "source_record_id": "HHG-010",
+      "evidence_type": "model_score",
+      "description": "Case HHG-010 opened for trigger 'risk_score': Real-time model scored transaction 3506725 ($1,000.03, online) at 0.90. Review and decide.",
+      "observed_value": {
+        "trigger_type": "risk_score",
+        "initial_risk_score": 0.9
+      },
+      "supports": "high_risk_fraud",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:06:09.694861+00:00",
+      "provenance": "case_pack.csv:case_id=HHG-010",
+      "evidence_id": "EVD-9A79CDFA6193"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3506725",
+      "evidence_type": "model_score",
+      "description": "Transaction 3506725 pre-computed ML risk score is 0.90.",
+      "observed_value": {
+        "risk_score": 0.9,
+        "amount": 1000.03,
+        "channel": "online"
+      },
+      "supports": "high_risk_fraud",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:06:09.970970+00:00",
+      "provenance": "transactions.csv:risk_score (txn=3506725)",
+      "evidence_id": "EVD-9E9A5E1E7B31"
+    },
+    {
+      "source": "query_get_transaction_context",
+      "source_record_id": "3506725",
+      "evidence_type": "transaction_context",
+      "description": "Flagged transaction of $1000.03 via online channel at region code 469.",
+      "observed_value": {
+        "amount": 1000.03,
+        "channel": "online",
+        "addr1": 469
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.9,
+      "timestamp": "2026-09-25T08:06:09.970970+00:00",
+      "provenance": "transactions.csv:TransactionAmt,channel,addr1 (txn=3506725)",
+      "evidence_id": "EVD-A4131A2E14D0"
+    },
+    {
+      "source": "query_detect_region_anomaly",
+      "source_record_id": "3506725",
+      "evidence_type": "region_signal",
+      "description": "Transaction region 469 matches customer primary home region 469.",
+      "observed_value": {
+        "flagged_addr1": 469,
+        "home_region": 469
+      },
+      "supports": "none",
+      "contradicts": "out_of_region_use",
+      "confidence": 0.8,
+      "timestamp": "2026-09-25T08:06:10.034135+00:00",
+      "provenance": "transactions.csv:addr1 (txn=3506725)",
+      "evidence_id": "EVD-76FD5477D13F"
+    },
+    {
+      "source": "query_detect_shared_device",
+      "source_record_id": "3506725",
+      "evidence_type": "device_signal",
+      "description": "No identity/device record available for transaction 3506725.",
+      "observed_value": {
+        "has_device": false
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.5,
+      "timestamp": "2026-09-25T08:06:10.099273+00:00",
+      "provenance": "identity.csv (txn=3506725)",
+      "evidence_id": "EVD-2DA283D33477"
+    },
+    {
+      "source": "query_detect_velocity_burst",
+      "source_record_id": "3506725",
+      "evidence_type": "velocity_signal",
+      "description": "Same-day card activity detected (D1=0.0) with 1 transactions.",
+      "observed_value": {
+        "txn_count": 1,
+        "has_same_day_d1": true
+      },
+      "supports": "none",
+      "contradicts": "none",
+      "confidence": 0.6,
+      "timestamp": "2026-09-25T08:06:10.164269+00:00",
+      "provenance": "transactions.csv:D1 (txn=3506725)",
+      "evidence_id": "EVD-F240E7E9B51A"
+    },
+    {
+      "source": "query_get_customer_case_history",
+      "source_record_id": "C10434",
+      "evidence_type": "prior_case",
+      "description": "Customer C10434 has 1 prior closed cases (0 confirmed fraud, total exposure $0.00).",
+      "observed_value": {
+        "total_cases": 1,
+        "confirmed_fraud_count": 0,
+        "total_exposure_usd": 0,
+        "patterns": [
+          "none"
+        ]
+      },
+      "supports": "repeat_offender",
+      "contradicts": "none",
+      "confidence": 0.5,
+      "timestamp": "2026-09-25T08:06:10.230429+00:00",
+      "provenance": "closed_cases_history.csv:customer_id=C10434",
+      "evidence_id": "EVD-C550960A35D1"
+    }
+  ],
+  "findings": {
+    "outcome": "confirmed_fraud",
+    "pattern": "card_not_present_fraud",
+    "summary": "FINDING: Case HHG-010 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-9A79CDFA6193] (model_score) Case HHG-010 opened for trigger 'risk_score': Real-time model scored transaction 3506725 ($1,000.03, online) at 0.90. Review and decide. (Provenance: case_pack.csv:case_id=HHG-010)\n  - [EVD-9E9A5E1E7B31] (model_score) Transaction 3506725 pre-computed ML risk score is 0.90. (Provenance: transactions.csv:risk_score (txn=3506725))\n  - [EVD-A4131A2E14D0] (transaction_context) Flagged transaction of $1000.03 via online channel at region code 469. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3506725))\n  - [EVD-76FD5477D13F] (region_signal) Transaction region 469 matches customer primary home region 469. (Provenance: transactions.csv:addr1 (txn=3506725))\n  - [EVD-2DA283D33477] (device_signal) No identity/device record available for transaction 3506725. (Provenance: identity.csv (txn=3506725))\n  - [EVD-F240E7E9B51A] (velocity_signal) Same-day card activity detected (D1=0.0) with 1 transactions. (Provenance: transactions.csv:D1 (txn=3506725))\n  - [EVD-C550960A35D1] (prior_case) Customer C10434 has 1 prior closed cases (0 confirmed fraud, total exposure $0.00). (Provenance: closed_cases_history.csv:customer_id=C10434)\nIMPLICATION: Flagged transaction 3506725 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD."
+  },
+  "decisions": {
+    "recommended_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "approval_route": "auto",
+    "policy_decision": {
+      "required_actions": [
+        "CREATE_CASE",
+        "BLOCK_CARD"
+      ],
+      "permitted_actions": [],
+      "forbidden_actions": [
+        "CLOSE_NO_FRAUD"
+      ],
+      "sar_required": false,
+      "approval_route": "auto",
+      "policy_rules_applied": [
+        "POL-001",
+        "POL-002"
+      ],
+      "reasoning": "POL-001: trigger_type='risk_score' \u2192 CREATE_CASE required\nPOL-002: confirmed_fraud \u2192 BLOCK_CARD mandatory\nPOL-003: exposure_usd=0.00 < 1000 and pattern='card_not_present_fraud' \u2192 SAR not required"
+    }
+  },
+  "additional_evidence": {
+    "rounds": 0,
+    "requests": [],
+    "responses": [],
+    "nba_before": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "nba_after": null
+  },
+  "execution": {
+    "executed_actions": [
+      "CREATE_CASE",
+      "BLOCK_CARD"
+    ],
+    "sar_required": false
+  },
+  "memory": {
+    "written_to_graph": true,
+    "graph_record_type": "InvestigationCase",
+    "mcp_transport": "stdio_mcp",
+    "writeback_tool_calls": [
+      {
+        "event": "tools/call",
+        "transport": "stdio_mcp",
+        "server": "tigergraph-mcp",
+        "tool": "tigergraph__add_nodes"
+      }
+    ],
+    "transport_failures": []
+  },
+  "explanation": {
+    "text": "FINDING: Case HHG-010 resolved as confirmed_fraud (Pattern: card_not_present_fraud).\nEVIDENCE:\n  - [EVD-9A79CDFA6193] (model_score) Case HHG-010 opened for trigger 'risk_score': Real-time model scored transaction 3506725 ($1,000.03, online) at 0.90. Review and decide. (Provenance: case_pack.csv:case_id=HHG-010)\n  - [EVD-9E9A5E1E7B31] (model_score) Transaction 3506725 pre-computed ML risk score is 0.90. (Provenance: transactions.csv:risk_score (txn=3506725))\n  - [EVD-A4131A2E14D0] (transaction_context) Flagged transaction of $1000.03 via online channel at region code 469. (Provenance: transactions.csv:TransactionAmt,channel,addr1 (txn=3506725))\n  - [EVD-76FD5477D13F] (region_signal) Transaction region 469 matches customer primary home region 469. (Provenance: transactions.csv:addr1 (txn=3506725))\n  - [EVD-2DA283D33477] (device_signal) No identity/device record available for transaction 3506725. (Provenance: identity.csv (txn=3506725))\n  - [EVD-F240E7E9B51A] (velocity_signal) Same-day card activity detected (D1=0.0) with 1 transactions. (Provenance: transactions.csv:D1 (txn=3506725))\n  - [EVD-C550960A35D1] (prior_case) Customer C10434 has 1 prior closed cases (0 confirmed fraud, total exposure $0.00). (Provenance: closed_cases_history.csv:customer_id=C10434)\nIMPLICATION: Flagged transaction 3506725 ($0.00) evaluated under deterministic policy.\nUNCERTAINTY: Residual risk assessed under evidence bounds.\nRECOMMENDED ACTIONS: CREATE_CASE, BLOCK_CARD.",
+    "citations": [
+      "EVD-9A79CDFA6193",
+      "EVD-9E9A5E1E7B31",
+      "EVD-A4131A2E14D0",
+      "EVD-76FD5477D13F",
+      "EVD-2DA283D33477",
+      "EVD-F240E7E9B51A",
+      "EVD-C550960A35D1"
+    ]
+  },
+  "metadata": {
+    "reasoning_source": "deterministic_fallback",
+    "citation_validity": true,
+    "source_artifact": "docs/PHASE3_EVALUATION_RESULTS.json"
+  }
+}
